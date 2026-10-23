@@ -4,12 +4,16 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.util.Log;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * ZenTV's settings, read beside {@link Config} so that upstream class stays as it is: the zen_* values in
@@ -33,12 +37,13 @@ final class ZenConfig {
     final String city;
     /** Bing's picture of the day behind Home, downloaded once a day (zen_daily_wallpaper). */
     final boolean dailyWallpaper;
-    /** App opened when the TV boots or wakes up onto Home (zen_autostart_app), and its deep link; empty = off. */
+    /** App opened when the TV boots or wakes up onto Home (zen_autostart_app); empty = off. */
     final String autostartApp;
-    final String autostartUri;
+    /** The deep links sent to it on a fresh boot, in order (zen_autostart_uri); see ZenAutostart. */
+    final List<String> autostartUris;
 
     ZenConfig(boolean weather, double latitude, double longitude, String city, boolean dailyWallpaper,
-              String autostartApp, String autostartUri) {
+              String autostartApp, List<String> autostartUris) {
         boolean located = !Double.isNaN(latitude) && !Double.isNaN(longitude);
         this.city = located ? "" : city.trim();
         this.weather = weather && (located || !this.city.isEmpty());
@@ -46,7 +51,8 @@ final class ZenConfig {
         this.longitude = located ? longitude : Double.NaN;
         this.dailyWallpaper = dailyWallpaper;
         this.autostartApp = autostartApp.trim();
-        this.autostartUri = this.autostartApp.isEmpty() ? "" : autostartUri.trim();
+        this.autostartUris = this.autostartApp.isEmpty() ? Collections.emptyList()
+                : Collections.unmodifiableList(new ArrayList<>(autostartUris));
     }
 
     /** Anything here uses the network. */
@@ -65,7 +71,7 @@ final class ZenConfig {
                 coordinate(res.getString(R.string.longitude), Double.NaN, 180),
                 res.getBoolean(R.bool.zen_daily_wallpaper),
                 res.getString(R.string.zen_autostart_app),
-                res.getString(R.string.zen_autostart_uri));
+                links(res.getString(R.string.zen_autostart_uri)));
     }
 
     /**
@@ -74,7 +80,7 @@ final class ZenConfig {
      */
     static ZenConfig from(JSONObject json, boolean weather, double latitude, double longitude, String city,
                           double skyLatitude, double skyLongitude, boolean dailyWallpaper,
-                          String autostartApp, String autostartUri) {
+                          String autostartApp, List<String> autostartUris) {
         if (json != null) {
             weather = json.opt("weather") instanceof Boolean ? json.optBoolean("weather") : weather;
             latitude = decimal(json.opt("weather_latitude"), latitude, 90);
@@ -82,13 +88,32 @@ final class ZenConfig {
             city = json.opt("weather_city") instanceof String ? json.optString("weather_city") : city;
             dailyWallpaper = json.opt("daily_wallpaper") instanceof Boolean ? json.optBoolean("daily_wallpaper") : dailyWallpaper;
             autostartApp = json.opt("autostart_app") instanceof String ? json.optString("autostart_app") : autostartApp;
-            autostartUri = json.opt("autostart_uri") instanceof String ? json.optString("autostart_uri") : autostartUri;
+            Object uri = json.opt("autostart_uri");
+            if (uri instanceof String) autostartUris = links((String) uri);
+            else if (uri instanceof JSONArray) autostartUris = links((JSONArray) uri);
         }
         if ((Double.isNaN(latitude) || Double.isNaN(longitude)) && city.trim().isEmpty()) {
             latitude = skyLatitude;
             longitude = skyLongitude;
         }
-        return new ZenConfig(weather, latitude, longitude, city, dailyWallpaper, autostartApp, autostartUri);
+        return new ZenConfig(weather, latitude, longitude, city, dailyWallpaper, autostartApp, autostartUris);
+    }
+
+    /** Deep links written in one string, separated by spaces ("minerva://content/livetv minerva://keycode/ok"). */
+    static List<String> links(String text) {
+        List<String> out = new ArrayList<>();
+        for (String s : text.trim().split("\\s+")) if (!s.isEmpty()) out.add(s);
+        return out;
+    }
+
+    /** Deep links as a JSON array; entries that are not text are skipped. */
+    static List<String> links(JSONArray array) {
+        List<String> out = new ArrayList<>();
+        for (int i = 0; i < array.length(); i++) {
+            Object item = array.opt(i);
+            if (item instanceof String) out.addAll(links((String) item));
+        }
+        return out;
     }
 
     /** A latitude or longitude from config.xml ("54.69"); the fallback when empty, not a number or out of range. */

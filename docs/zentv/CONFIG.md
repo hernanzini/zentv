@@ -11,7 +11,8 @@ default; a key of the wrong type keeps the default.
 | `weather_city` | `zen_weather_city` | string | Where the weather is for, as a place name: `"Resistencia, Chaco, Argentina"`. The parts after the first narrow it down to a province, state or country |
 | `weather_latitude`, `weather_longitude` | `zen_weather_latitude`, `zen_weather_longitude` | number | Where the weather is for, in decimal degrees. They win over `weather_city`. With neither, upstream's `latitude` and `longitude` from `config.xml` (the ones the sky uses); with none, no weather line |
 | `daily_wallpaper` | `zen_daily_wallpaper` | bool | Bing's picture of the day behind Home |
-| `autostart_app`, `autostart_uri` | `zen_autostart_app`, `zen_autostart_uri` | string | The app opened when the TV boots or wakes up onto Home, and an optional deep link sent to it on a fresh boot |
+| `autostart_app` | `zen_autostart_app` | string | The app opened when the TV boots or wakes up onto Home |
+| `autostart_uri` | `zen_autostart_uri` | list of strings, or one string with spaces | Deep links sent to that app on a fresh boot, in order |
 
 ## Example
 
@@ -21,13 +22,13 @@ default; a key of the wrong type keeps the default.
   "weather_city": "Resistencia, Chaco, Argentina",
   "daily_wallpaper": true,
   "autostart_app": "ar.com.sensa.player",
-  "autostart_uri": "minerva://content/livetv"
+  "autostart_uri": ["minerva://content/livetv", "minerva://keycode/dpad_center"]
 }
 ```
 
-`ar.com.sensa.player` is Sensa, a live-TV app in Argentina, and `minerva://content/livetv` opens its guide. For
-another app, `tools/tv.py 'pm list packages'` lists the package names, and the app's maker documents its deep
-links, if any.
+`ar.com.sensa.player` is Sensa, a live-TV app in Argentina: `minerva://content/livetv` opens its guide on the last
+channel, and `minerva://keycode/dpad_center` presses OK on it, so the channel plays. For another app,
+`tools/tv.py 'pm list packages'` lists the package names, and the app's maker documents its deep links, if any.
 
 ## Weather line
 
@@ -66,6 +67,11 @@ app at once and sends no deep link.
   screen, and a streaming app started offline shows an error. While the TV is in standby, a see-through screen
   holds the app until the network is back and shows "Connecting..." if that takes a while.
 - `autostart_uri` is sent on a fresh boot only. After standby the app is brought back where it was.
+- The first link opens the app. The others follow 3 s apart, and the last one repeats every 3 s until the app
+  starts playing, for 60 s at most: after a cold start an app can take a while to load, and a key it gets too early
+  is lost. Sensa's guide takes 17 to 31 s on an RCA UnionTV. Pressing Home on the remote stops the links.
+- ZenTV knows the app started playing when its player takes the audio focus, a second or so after it starts.
+  That matters for Sensa: an OK during playback opens the player panel on Pause, and a second one pauses.
 - A wake-up into another app or into an HDMI input switched on through HDMI-CEC is left alone, and the remote's
   Home button still shows Home.
 - To notice standby while the app is on screen, Home keeps a foreground service running. Some firmware (TCL)
