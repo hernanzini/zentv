@@ -67,6 +67,9 @@ ZenTV's JVM tests are `Zen*Test.java` in `launcher/app/src/test/`.
 
 ## Pull requests
 
+- `main` is protected: every change, an upstream merge included, goes through a pull request whose two CI checks
+  (`Launcher build and unit tests`, `Lists, tools and docs`) pass. No direct pushes, force pushes or deletion,
+  for admins too. GitHub's "Sync fork" button pushes to `main`, so it fails: merge upstream on a branch instead.
 - Into ZenTV (`hernanzini/zentv`): any change that follows this file.
 - Into upstream (`Gathin23/cleanyourtv`): only what fits upstream's own rules, on a branch made from
   `upstream/main`, never with `Zen*` code, `zen_*` resources or the `INTERNET` permission.
