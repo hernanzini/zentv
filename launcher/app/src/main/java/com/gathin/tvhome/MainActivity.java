@@ -277,6 +277,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private RecyclerView.OnScrollListener pendingFocusScroll;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+    /** ZenTV's additions (ZenTv): the weather line and the daily wallpaper, off unless configured. */
+    private ZenTv zenTv;
     /** Refreshes the network pill when the connection changes: at boot Wi-Fi often connects after Home is shown. */
     private final ConnectivityManager.NetworkCallback networkCallback = new ConnectivityManager.NetworkCallback() {
         @Override
@@ -392,6 +394,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // the theme's background, so launch looks the same.
         getWindow().setBackgroundDrawable(null);
         wallpaperPlayer = new WallpaperPlayer(this, root, cfg);
+        zenTv = new ZenTv(this, root);   // ZenTV: weather line and daily wallpaper
         sky = findViewById(R.id.sky);
         sky.setIntensity(cfg.skyIntensity);
         glass = findViewById(R.id.glass);
@@ -839,6 +842,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             default:
                 break;
         }
+        zenTv.resume();
         if (openLiveTvAfterBoot()) return;
         updateGreeting();
         updateRace();
@@ -1025,6 +1029,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         root.removeCallbacks(showIdleClock);
         endReorder();   // Home or another app while reordering keeps the order so far
         wallpaperPlayer.stop();
+        zenTv.pause();
         stopAmbientAnimation();
         hero.animate().cancel();
         ambient.animate().cancel();
@@ -1087,6 +1092,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onDestroy();
         unregisterReceiver(packageReceiver);
         wallpaperPlayer.close();
+        zenTv.close();
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
         TvInputManager tim = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
         if (tim != null) tim.unregisterCallback(inputCallback);

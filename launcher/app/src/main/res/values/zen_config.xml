@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ZenTV's settings, beside upstream's config.xml so merges from upstream never touch them. A theme's config.json
+  sets the same keys without the zen_ prefix ("weather": true, "weather_city": "Resistencia, Chaco, Argentina").
+  Everything is off by default; docs/zentv/CONFIG.md has the details.
+-->
+<resources>
+
+    <!-- The weather line under the header: now, today's high, low and chance of rain, and the next four 3-hour
+         slots, from api.open-meteo.com (no account or key), refreshed every 30 minutes while Home is on screen. -->
+    <bool name="zen_weather">false</bool>
+    <!-- Where the weather is for, the first of these that is set: coordinates in decimal degrees (54.69, 25.28);
+         a place name, looked up once with geocoding-api.open-meteo.com and kept on the TV ("Resistencia, Chaco,
+         Argentina": the parts after the first narrow it down to a province or a country); config.xml's latitude
+         and longitude, the ones the sky uses. With none, there is no weather line. -->
+    <string name="zen_weather_latitude" translatable="false"></string>
+    <string name="zen_weather_longitude" translatable="false"></string>
+    <string name="zen_weather_city" translatable="false"></string>
+
+    <!-- Bing's picture of the day behind Home, downloaded once a day over HTTPS from www.bing.com, darkened at the
+         top and bottom so the clock and the tiles stay readable, with its caption in the top corner. It covers a
+         theme's wallpaper; the theme's look shows until the first picture arrives. -->
+    <bool name="zen_daily_wallpaper">false</bool>
+
+    <!-- App opened when the TV boots or wakes up from standby onto Home, so it comes on straight into, say, a
+         streaming live-TV app. It waits for a validated network first (up to 20 s). A wake-up into another app or
+         an HDMI input is left alone, and the Home button still shows Home. Uses a foreground service to stay alive
+         while the app is on screen. zen_autostart_uri optionally sends a deep link to it on a fresh boot instead of
+         its launch intent: ar.com.sensa.player with minerva://content/livetv opens Sensa's guide. Empty: off. -->
+    <string name="zen_autostart_app" translatable="false"></string>
+    <string name="zen_autostart_uri" translatable="false"></string>
+</resources>
