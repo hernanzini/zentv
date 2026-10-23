@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ZenTV: one coming hour in the weather line, its time, icon and temperature. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="14dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical">
+
+    <TextView
+        android:id="@+id/zenHourTime"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:singleLine="true"
+        android:textColor="#A6FFFFFF"
+        android:textSize="12sp"
+        android:fontFamily="@string/font_medium"
+        android:letterSpacing="0.08"
+        android:textAllCaps="true"
+        android:includeFontPadding="false" />
+
+    <com.gathin.tvhome.ZenWeatherIcon
+        android:id="@+id/zenHourIcon"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_marginStart="6dp"
+        android:layout_marginEnd="5dp" />
+
+    <TextView
+        android:id="@+id/zenHourTemp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:singleLine="true"
+        android:textColor="#E6FFFFFF"
+        android:textSize="15sp"
+        android:fontFamily="@string/font_regular"
+        android:includeFontPadding="false" />
+</LinearLayout>

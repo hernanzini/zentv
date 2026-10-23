@@ -7,6 +7,12 @@
     <uses-feature android:name="android.hardware.wifi" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
+    <!-- ZenTV: only for zen_weather and zen_daily_wallpaper (res/values/zen_config.xml), both off by default.
+         Upstream's launcher has no INTERNET permission. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- ZenTV: ZenKeepAliveService, which runs only when zen_autostart_app is set. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- Needed since Android 10 to read the Wi-Fi network name for the network pill. Never requested at
@@ -202,5 +208,26 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/input_key_service" />
         </service>
+        <!-- ZenTV (zen_autostart_app): keeps Home's process alive while another app is on screen, so it still sees the
+             TV go to standby and wake up. Some TV firmware (TCL) force-stops background apps after about 30 s. -->
+        <service
+            android:name=".ZenKeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Home screen reacting to standby and wake-up to reopen the live TV app" />
+        </service>
+
+        <!-- ZenTV (zen_autostart_app): waits over the app on screen through standby until the network is back. Its own
+             task, so what shows through it is that app, not Home. -->
+        <activity
+            android:name=".ZenHoldActivity"
+            android:exported="false"
+            android:theme="@style/Theme.ZenHold"
+            android:taskAffinity="com.gathin.tvhome.hold"
+            android:launchMode="singleInstance"
+            android:excludeFromRecents="true"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode" />
     </application>
 </manifest>

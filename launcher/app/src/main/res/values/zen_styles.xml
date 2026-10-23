@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ZenTV's styles, beside upstream's styles.xml so merges from upstream never touch them. -->
+<resources>
+    <!-- ZenHoldActivity: see-through, so the app it waits over stays visible (and is not a background app). -->
+    <style name="Theme.ZenHold" parent="android:Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:colorBackgroundCacheHint">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+</resources>

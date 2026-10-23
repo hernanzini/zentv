@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ZenTV: the weather line, put under the header by ZenTv (zen_weather). Invisible, not gone, until the first
+     answer: a fixed height, so the tiles do not move when it fills in. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/zenWeather"
+    android:layout_width="wrap_content"
+    android:layout_height="40dp"
+    android:layout_marginTop="10dp"
+    android:layout_marginStart="2dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:focusable="false"
+    android:visibility="invisible">
+
+    <com.gathin.tvhome.ZenWeatherIcon
+        android:id="@+id/zenWeatherIcon"
+        android:layout_width="34dp"
+        android:layout_height="34dp" />
+
+    <TextView
+        android:id="@+id/zenWeatherTemp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:singleLine="true"
+        android:textColor="#FFFFFFFF"
+        android:textSize="28sp"
+        android:fontFamily="@string/font_light"
+        android:letterSpacing="-0.02"
+        android:includeFontPadding="false" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/zenWeatherSky"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:singleLine="true"
+            android:textColor="#E6FFFFFF"
+            android:textSize="12sp"
+            android:fontFamily="@string/font_medium"
+            android:letterSpacing="0.14"
+            android:textAllCaps="true"
+            android:includeFontPadding="false" />
+
+        <TextView
+            android:id="@+id/zenWeatherToday"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:singleLine="true"
+            android:textColor="#A6FFFFFF"
+            android:textSize="12sp"
+            android:fontFamily="@string/font_regular"
+            android:letterSpacing="0.1"
+            android:textAllCaps="true"
+            android:includeFontPadding="false" />
+    </LinearLayout>
+
+    <View
+        android:id="@+id/zenWeatherDivider"
+        android:layout_width="1dp"
+        android:layout_height="26dp"
+        android:layout_marginStart="18dp"
+        android:layout_marginEnd="4dp"
+        android:background="#33FFFFFF" />
+
+    <!-- The coming hours, one zen_weather_hour each. -->
+    <LinearLayout
+        android:id="@+id/zenWeatherHours"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical" />
+</LinearLayout>

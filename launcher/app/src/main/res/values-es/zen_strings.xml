@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="zen_weather_today">Máx %1$s · Mín %2$s</string>
+    <string name="zen_weather_rain">Lluvia %1$d%%</string>
+    <string name="zen_sky_clear">Despejado</string>
+    <string name="zen_sky_mostly_clear">Mayormente despejado</string>
+    <string name="zen_sky_partly_cloudy">Parcialmente nublado</string>
+    <string name="zen_sky_cloudy">Nublado</string>
+    <string name="zen_sky_fog">Niebla</string>
+    <string name="zen_sky_drizzle">Llovizna</string>
+    <string name="zen_sky_light_rain">Lluvia débil</string>
+    <string name="zen_sky_rain">Lluvia</string>
+    <string name="zen_sky_heavy_rain">Lluvia fuerte</string>
+    <string name="zen_sky_snow">Nieve</string>
+    <string name="zen_sky_storm">Tormenta</string>
+    <string name="zen_sky_hail">Tormenta con granizo</string>
+    <string name="zen_connecting">Conectando…</string>
+</resources>
