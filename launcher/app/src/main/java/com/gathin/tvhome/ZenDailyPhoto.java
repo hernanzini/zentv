@@ -18,7 +18,8 @@ import java.util.Locale;
 /**
  * Bing's picture of the day as the wallpaper (zen_daily_wallpaper): downloaded once a day from
  * www.bing.com into daily.jpg, with its date and caption in daily.json. Bing offers these pictures for use
- * as wallpapers only, which is all this does; a day whose picture is not offered as one keeps the last.
+ * as wallpapers only, which is all this does. Some days' pictures are not offered as wallpapers ("wp": false):
+ * then the most recent one of the last eight days that is takes its place.
  */
 final class ZenDailyPhoto {
     static final String IMAGE_NAME = "daily.jpg";
@@ -50,14 +51,11 @@ final class ZenDailyPhoto {
         final String date;
         final String urlBase;
         final String caption;
-        /** Bing's "wp" flag: false when the picture is not offered as a wallpaper. */
-        final boolean wallpaper;
 
-        Listing(String date, String urlBase, String caption, boolean wallpaper) {
+        Listing(String date, String urlBase, String caption) {
             this.date = date;
             this.urlBase = urlBase;
             this.caption = caption;
-            this.wallpaper = wallpaper;
         }
 
         /** The 1920x1080 picture, always on www.bing.com whatever the listing says. */
@@ -91,20 +89,28 @@ final class ZenDailyPhoto {
         }
     }
 
+    /** The last eight days, newest first: Bing's archive gives no more in one answer. */
     static String listingUrl(String market) {
-        return "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=" + market;
+        return "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8&mkt=" + market;
     }
 
-    /** Today's entry in Bing's answer, or null when the answer has none that looks right. */
+    /**
+     * The newest entry in Bing's answer that is offered as a wallpaper and looks right, or null when there is none
+     * (2026-10-23 in es-ES was not, while the day before was).
+     */
     static Listing parse(String json) {
         try {
             JSONArray images = new JSONObject(json).getJSONArray("images");
-            JSONObject i = images.getJSONObject(0);
-            String date = i.getString("startdate");
-            String urlBase = i.getString("urlbase");
-            // A path on www.bing.com, nothing that could change the host or the scheme.
-            if (!date.matches("\\d{8}") || !urlBase.startsWith("/th?id=") || urlBase.contains("//")) return null;
-            return new Listing(date, urlBase, i.optString("copyright").trim(), i.optBoolean("wp", true));
+            for (int n = 0; n < images.length(); n++) {
+                JSONObject i = images.optJSONObject(n);
+                if (i == null || !i.optBoolean("wp", true)) continue;
+                String date = i.optString("startdate");
+                String urlBase = i.optString("urlbase");
+                // A path on www.bing.com, nothing that could change the host or the scheme.
+                if (!date.matches("\\d{8}") || !urlBase.startsWith("/th?id=") || urlBase.contains("//")) continue;
+                return new Listing(date, urlBase, i.optString("copyright").trim());
+            }
+            return null;
         } catch (JSONException e) {
             return null;
         }
@@ -124,15 +130,14 @@ final class ZenDailyPhoto {
     }
 
     /**
-     * Network, off the main thread: today's picture into {@code dir}. Null when the kept one is already today's,
-     * or when today's is not offered as a wallpaper, so the kept one stays.
+     * Network, off the main thread: the newest picture offered as a wallpaper into {@code dir}. Null when the kept
+     * one is already that one, so it stays.
      */
     static ZenDailyPhoto fetch(File dir, String market, ZenDailyPhoto current) throws IOException {
         String body = new String(ZenNet.get(listingUrl(market), MAX_LISTING_BYTES), StandardCharsets.UTF_8);
         Listing l = parse(body);
-        if (l == null) throw new IOException("unexpected answer from www.bing.com");
+        if (l == null) throw new IOException("no picture offered as a wallpaper by www.bing.com");
         if (current != null && l.date.equals(current.date)) return null;
-        if (!l.wallpaper) return null;
         byte[] jpeg = ZenNet.get(l.imageUrl(), MAX_IMAGE_BYTES);
         BitmapFactory.Options bounds = new BitmapFactory.Options();
         bounds.inJustDecodeBounds = true;

@@ -26,13 +26,20 @@ public class ZenDailyPhotoTest {
         assertNotNull(l);
         assertEquals("20261023", l.date);
         assertEquals("Dos lobos grises, Yellowstone (© John Morrison/Getty Images)", l.caption);
-        assertTrue(l.wallpaper);
         assertEquals("https://www.bing.com/th?id=OHR.YellowstoneWolves_ES-ES1877782674_1920x1080.jpg", l.imageUrl());
     }
 
     @Test
-    public void aPictureNotOfferedAsWallpaperSaysSo() {
-        assertFalse(ZenDailyPhoto.parse(listing("/th?id=OHR.X", ",\"wp\":false")).wallpaper);
+    public void aDayNotOfferedAsWallpaperGivesWayToTheNewestThatIs() {
+        String week = "{\"images\":["
+                + "{\"startdate\":\"20261023\",\"urlbase\":\"/th?id=OHR.Library\",\"copyright\":\"a\",\"wp\":false},"
+                + "{\"startdate\":\"20261022\",\"urlbase\":\"//example.com/x\",\"copyright\":\"b\",\"wp\":true},"
+                + "{\"startdate\":\"20261021\",\"urlbase\":\"/th?id=OHR.Wolves\",\"copyright\":\"c\",\"wp\":true}]}";
+        ZenDailyPhoto.Listing l = ZenDailyPhoto.parse(week);
+        assertNotNull(l);
+        assertEquals("20261021", l.date);   // the 22nd is skipped too: not a path on www.bing.com
+        assertEquals("c", l.caption);
+        assertNull(ZenDailyPhoto.parse("{\"images\":[{\"startdate\":\"20261023\",\"urlbase\":\"/th?id=OHR.X\",\"wp\":false}]}"));
     }
 
     @Test
