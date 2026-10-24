@@ -53,7 +53,8 @@ stay readable, with its caption in the top-right corner.
 - Source: `www.bing.com`, once a day while Home is on screen, retried every hour until the new picture is out.
   The request carries a market code from the TV's language (`es-ES` for Spanish, `en-US` when there is none).
 - Bing offers these pictures for use as wallpapers only. ZenTV downloads them on each TV for that use and never
-  ships or shares them. A day whose picture is not offered as a wallpaper keeps the previous one.
+  ships or shares them. Some days' pictures are not offered as wallpapers: then the newest one of the last eight
+  days that is shows instead.
 - It covers a theme's own wallpaper. Leave the theme without `wallpaper.jpg` or `wallpapers/` to save memory.
 - Without a connection the last picture stays. Before the first one arrives, the theme's look shows.
 
