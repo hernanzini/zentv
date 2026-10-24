@@ -40,8 +40,7 @@ anything your family uses.
 
    ```json
    { "weather": true, "weather_city": "Resistencia, Chaco, Argentina", "daily_wallpaper": true,
-     "autostart_app": "ar.com.sensa.player",
-     "autostart_uri": ["minerva://content/livetv", "minerva://keycode/dpad_center"] }
+     "autostart_app": "ar.com.sensa.player" }
    ```
 
 4. Push it: `TV_HOST=<tv ip> tools/theme.sh <folder>`

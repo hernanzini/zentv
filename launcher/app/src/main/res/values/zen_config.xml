@@ -26,10 +26,9 @@
          streaming live-TV app. It waits for a validated network first (up to 20 s). A wake-up into another app or
          an HDMI input is left alone, and the Home button still shows Home. Uses a foreground service to stay alive
          while the app is on screen. Empty: off.
-         zen_autostart_uri: deep links sent to it on a fresh boot instead of its launch intent, separated by spaces.
-         The first opens the app; the others follow 3 s apart, and the last repeats every 3 s until the app starts
-         playing (60 s at most). Sensa (ar.com.sensa.player): "minerva://content/livetv minerva://keycode/dpad_center"
-         opens the guide on the last channel and presses OK on it once the guide has loaded. -->
+         zen_autostart_uri: a deep link sent to it on a fresh boot instead of its launch intent. Sensa
+         (ar.com.sensa.player) needs none when its own "Sintoniza En Vivo" option is on: it plays the last channel at
+         start by itself. minerva://content/livetv opens its guide on the last channel instead. -->
     <string name="zen_autostart_app" translatable="false"></string>
     <string name="zen_autostart_uri" translatable="false"></string>
 </resources>
