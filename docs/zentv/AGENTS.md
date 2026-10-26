@@ -26,8 +26,8 @@ keys.
   on screen, and never sends identifiers, accounts or analytics.
 - **Background service:** `ZenKeepAliveService` is a foreground service, which upstream does not allow. It runs
   only while `zen_autostart_app` is set. No other background work: no polling while another app is on screen.
-- **APK gate:** 524,288 B (512 KB) instead of upstream's 491,520 B, in `.github/workflows/ci.yml` and the root
-  AGENTS.md. Keep ZenTV's share of it small.
+- **APK gate:** upstream's, in `.github/workflows/ci.yml` and the root AGENTS.md. ZenTV's code adds about 20 KB
+  to the APK: keep its share small. If a merge from upstream puts ZenTV over the gate, cut ZenTV's code first.
 - **Everything else is upstream's:** `minSdk` 26, no new launcher dependencies, disable never uninstall, the
   Home guard, no identifiers in commits, real-TV checks with screenshots.
 
@@ -55,7 +55,7 @@ Home on a real TV.
 
 ## Checks
 
-The root AGENTS.md checks apply, with the 512 KB gate. In short:
+The root AGENTS.md checks apply. In short:
 
 ```bash
 python3 -m unittest discover -s tests -v

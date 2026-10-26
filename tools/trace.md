@@ -35,7 +35,10 @@ TV_HOST=<tv ip> tools/venv/bin/python -I tools/trace.py home --runs 5 --out trac
 
 - **Output:** each run writes `<scenario>-<n>.pftrace` (10–20 MB) and a `.json` with the commands and the
   TV's model and build. `traces/` is gitignored.
-- **The other app:** `--app package/activity`, or by default the TV's Settings.
+- **The other app:** `--app package/activity`, or by default the TV's Settings. Both this tool and
+  `bench.py` bring an existing instance to the front across runs, rather than stacking new Settings
+  activities. They do not clear the other app's data or force-stop it. Check that it is responsive
+  after a long session; an already accumulated history is not removed by this flag.
 
 ## Report
 
@@ -70,6 +73,9 @@ and GPU waits where available; a draw's duration is not the full frame time.
 - **Keep starred runs.** They're usually memory pressure on a 1 GB TV. Report them; don't drop them.
 - **Don't run `am start` after a force-stop with Home in front.** Android has already restarted Home, so
   `onResume` appears twice. Use `cold` or `coldsys`.
+- **Cold starts use the HOME intent.** `bench.py` and the `cold` trace send `MAIN` with the `HOME`
+  category. Starting only the component can create a regular task beside the Home task, so a later
+  Home press creates another instance. Compare runs recorded with the same launch command.
 - **Check the remote afterwards.** A force-stop switches off the accessibility helpers. `trace.py` puts the
   list back after the last run, but on some TCL sets a helper still won't bind (`docs/TROUBLESHOOTING.md`).
 - **Look in the right place for GPU savings.** Less overdraw shows as GPU wait in `nav`, not as main-thread

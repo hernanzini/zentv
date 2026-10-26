@@ -373,11 +373,16 @@ def cold_start(tv, component, repeats):
     services = accessibility_services(tv, package)
     try:
         for _ in range(repeats):
-            tv.shell(f"am start -W -n {other}")
+            # Reuse Settings even if its task was first opened with ACTION_SETTINGS.
+            # A component-only start can otherwise stack another activity on every run.
+            tv.shell(f"am start -W --activity-reorder-to-front -n {other}")
             time.sleep(2)
             tv.shell(f"am force-stop {package}")
             time.sleep(3)
-            out = tv.shell(f"am start -W -n {component}")
+            # An explicit component alone creates a regular task. Start the HOME task,
+            # so the next Home press cannot create a second launcher instance.
+            out = tv.shell(f"am start -W -a android.intent.action.MAIN "
+                           f"-c android.intent.category.HOME -n {component}")
             match = re.search(r"WaitTime:\s*(\d+)", out)
             if match:
                 values.append(int(match.group(1)))
@@ -400,7 +405,7 @@ def return_to_home(tv, component, repeats):
     if class_name.startswith("."):
         class_name = component.split("/", 1)[0] + class_name
     for _ in range(repeats):
-        tv.shell(f"am start -W -n {other}")
+        tv.shell(f"am start -W --activity-reorder-to-front -n {other}")
         time.sleep(3)
         clear_log(tv)
         tv.shell("input keyevent 3")
