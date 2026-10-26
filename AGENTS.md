@@ -5,8 +5,8 @@ this repository. People should start with [README.md](README.md) and [CONTRIBUTI
 this file repeats their rules in the form an agent needs, and links to them for the detail.
 
 > **This is ZenTV, a fork of cleanyourtv.** Everything here is upstream's guide and still applies, except what
-> [`docs/zentv/AGENTS.md`](docs/zentv/AGENTS.md) changes (network for opt-in features, the APK gate, where ZenTV
-> code goes). Read that file before any task in this repository.
+> [`docs/zentv/AGENTS.md`](docs/zentv/AGENTS.md) changes (network for opt-in features, a foreground service, where
+> ZenTV code goes). Read that file before any task in this repository.
 
 ## First: which job are you doing?
 
@@ -66,12 +66,12 @@ share their TV's list afterwards, follow [`docs/workflows/tv-list.md`](docs/work
 | Path | What it is |
 |---|---|
 | `PROMPT.md` | The prompt people paste into their agent. Brand-neutral; safety rules live here. |
-| `README.md` | Front page, with the TV table and the Tools table. `README.zh-CN.md` and `README.vi.md` are translations. |
+| `README.md` | Front page, with the TV table (generated from `examples/*/tv.json` by `tools/gen_tables.py`) and the Tools table. `README.zh-CN.md` and `README.vi.md` are translations. |
 | `CONTRIBUTING.md` | The contributor guide for people. "Where does my idea go?" is the routing table. |
 | `SECURITY.md` | Private vulnerability reporting. |
 | `SHOWCASE.md` | Projects built on this repo that live in their own repositories. |
 | `CODE_OF_CONDUCT.md` | Includes the rule against publishing device identifiers, Wi-Fi names and IPs. |
-| `examples/` | One folder per tested TV model: `debloat.txt`, sometimes a `README.md` and a `config.json`. Indexed in `examples/README.md`. |
+| `examples/` | One folder per tested TV model: `debloat.txt`, `tv.json` (its row in the TV tables), sometimes a `README.md` and a `config.json`. Indexed in `examples/README.md`, whose table is generated too. |
 | `docs/` | `docs/TROUBLESHOOTING.md`, the module-card contract (`docs/modules.md`), `docs/devices/` for models with notes but no tested list, and the [workflows](#workflows). |
 | `launcher/` | The reference launcher, package `com.gathin.tvhome`: plain Java, AndroidX RecyclerView and DynamicAnimation, `minSdk` 26, no `INTERNET` permission. |
 | `themes/` | One folder per theme: `config.json`, a required `screenshot.jpg`, optional wallpapers. Keys are documented in `themes/README.md`. |
@@ -104,7 +104,7 @@ install scripts) are usually held for a run on a real TV.
 Step-by-step methods in `docs/workflows/`. Read the one that fits before you start; each opens with when to
 use it and ends with the check to run.
 
-- [`tv-list.md`](docs/workflows/tv-list.md): add a tested TV's debloat list with its README rows, or update one.
+- [`tv-list.md`](docs/workflows/tv-list.md): add a tested TV's debloat list with its `tv.json`, or update one.
 - [`launcher-switch.md`](docs/workflows/launcher-switch.md): add an off-by-default launcher switch, within the size gate.
 - [`translation.md`](docs/workflows/translation.md): add a launcher language, or fill strings missing from one.
 - [`theme.md`](docs/workflows/theme.md): add a theme from existing keys, with its screenshot from a real TV.
@@ -119,10 +119,10 @@ use it and ends with the check to run.
 
 | Check | Command or rule |
 |---|---|
-| Tests, as CI runs them | `python3 -m unittest discover -s tests -v` after `python3 -m venv tools/venv` and `tools/venv/bin/pip install -r tools/requirements.txt`. On `main`, CI sets `CLEANYOURTV_STRICT=1`, which also checks the README's TV-model count. |
+| Tests, as CI runs them | `python3 -m unittest discover -s tests -v` after `python3 -m venv tools/venv` and `tools/venv/bin/pip install -r tools/requirements.txt`. On `main`, CI sets `CLEANYOURTV_STRICT=1`, and its "README tables" job checks that the TV tables and counts are what `tools/gen_tables.py` writes. On Windows the suites that drive `tools/*.sh` report as skipped: they need a POSIX shell, and CI runs them. |
 | Launcher, if you touched `launcher/` | JDK 17, Android SDK platform 34, build-tools 34.0.0. In `launcher/`: `./gradlew --no-daemon testReleaseUnitTest lintRelease assembleRelease`. Lint must stay at zero errors. |
-| APK size gate | `launcher/app/build/outputs/apk/release/app-release.apk` must be under 524,288 B (512 KB). Linux: `stat -c %s`, macOS: `stat -f %z`. |
-| README rows | A new list has its row in `README.md` and `examples/README.md`; a theme in `themes/README.md`; an add-on in `addons/README.md`. |
+| APK size gate | `launcher/app/build/outputs/apk/release/app-release.apk` must be under 589,824 B (576 KB). Linux: `stat -c %s`, macOS: `stat -f %z`. |
+| README rows | A new list adds only its folder, with a `tv.json`: the TV tables, the brand line and the counts are generated after merging, so leave them alone. A theme has its row in `themes/README.md`; an add-on in `addons/README.md`. |
 | One topic per PR | A TV list never rides inside a launcher feature PR. A device's list plus small fixes for that same device can be one PR. |
 | Tested on | Say which TV, Android version and firmware you tested on, in the PR template's "Tested on" line. |
 | Real TV | Launcher changes are verified on a real TV, not only the emulator: `tools/tv.py --screenshot shots/after.png DPAD_DOWN`. D-pad from every edge (Up, Down, Left, Right). A button handled by an accessibility helper needs a press on the real remote, and a force-stop of the launcher switches the helpers off (`docs/TROUBLESHOOTING.md`). |
