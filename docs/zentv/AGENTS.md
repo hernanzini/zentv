@@ -52,6 +52,8 @@ never a squash, so the next sync starts from upstream's history.
 - The workflow needs the secret `ZENTV_SYNC_TOKEN`: a fine-grained personal access token for this repository
   only, with Contents, Pull requests and Workflows set to read and write. Its owner creates it on GitHub and
   stores it with `gh secret set ZENTV_SYNC_TOKEN -R hernanzini/zentv`. Never ask for it in a chat.
+- GitHub can refuse a token that lasts more than 90 days. When the token expires, the job fails at checkout:
+  create a new one and store it under the same name.
 - GitHub pauses a scheduled workflow after 60 days without activity in the repository. Turn it back on in the
   Actions tab.
 
