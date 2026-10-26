@@ -20,7 +20,8 @@ default; a key of the wrong type keeps the default.
   "weather": true,
   "weather_city": "Resistencia, Chaco, Argentina",
   "daily_wallpaper": true,
-  "autostart_app": "ar.com.sensa.player"
+  "autostart_app": "ar.com.sensa.player",
+  "autostart_uri": "minerva://content/livetv"
 }
 ```
 
@@ -67,11 +68,13 @@ app at once and sends no deep link.
   Home waits up to 5 minutes: when the power comes back after a cut, the router starts again too, and Wi-Fi can
   take minutes.
 - `autostart_uri` is sent on a fresh boot only. After standby the app is brought back where it was.
-- Sensa: turn on its own option "Sintoniza En Vivo cuando finaliza la reproducción" (profile, "Mi perfil", device
-  settings; it asks for the account PIN) and leave `autostart_uri` empty: Sensa then plays the last channel, or the
-  first one, as soon as it starts. Without that option, `minerva://content/livetv` opens its guide on the last
-  channel, and OK twice plays it. Started offline, Sensa shows "no connection" after 30 s and, on retry, asks for
-  the profile. Its option "No mostrar esta pantalla automáticamente" covers only coming back to Sensa.
+- Sensa: set `autostart_uri` to `minerva://content/livetv`. After a boot, Sensa opens its guide on the last
+  channel, sometimes with its side menu open, and OK twice plays the channel. Without the link it opens on its
+  home screen. Sensa never plays by itself at start: its build sets no default channel, and its option "Sintoniza
+  En Vivo cuando finaliza la reproducción" acts only when a film or a recording ends. After standby, Sensa comes
+  back on the channel that was on.
+- Started offline, Sensa shows "no connection" after 30 s and, on retry, asks for the profile. Its option "No
+  mostrar esta pantalla automáticamente" covers only coming back to Sensa.
 - Links only, never keys. A key sent by deep link before the app has loaded lands wherever the app happens to be:
   OK for Sensa's guide, sent right after a boot, opened a live sports event from Sensa's home screen instead.
 - A wake-up into another app or into an HDMI input switched on through HDMI-CEC is left alone, and the remote's

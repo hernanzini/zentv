@@ -25,11 +25,12 @@ import android.util.Log;
  * used last. Sensa started offline shows "no connection" after 30 s and, on retry, asks for the profile instead of
  * logging in by itself.
  *
- * Only a link, never keys. Sensa plays the last channel at start by itself when its own "tune to live" option is
- * on, so it needs no link at all; minerva://content/livetv opens its guide on the last channel. Pressing OK in the
- * guide by deep link (minerva://keycode/dpad_center) did not hold after a boot: a key that came before the guide
- * had loaded landed on Sensa's home screen and opened a live sports event. Its channel_up "from outside" plays the
- * last channel only once Sensa has played something since it started, so not after a boot either.
+ * Only a link, never keys. Sensa never plays by itself at start: its build sets no default channel, and its "tune
+ * to live" option acts only when a film or a recording ends. minerva://content/livetv opens its guide on the last
+ * channel. Pressing OK in the guide by deep link (minerva://keycode/dpad_center) did not hold after a boot: a key
+ * that came before the guide had loaded landed on Sensa's home screen and opened a live sports event. Its
+ * channel_up "from outside" plays the last channel only once Sensa has played something since it started, so not
+ * after a boot either.
  *
  * Waking from standby needs Home's process alive while the app is on screen, which ZenKeepAliveService (a
  * foreground service) keeps, and ZenHoldActivity holds the app until the network is back. Both run only while an
