@@ -19,8 +19,11 @@ import android.util.Log;
  * ZenTV: opens one app when the TV is switched on onto Home (zen_autostart_app), for sets used mostly for a
  * streaming live-TV app such as Sensa. Upstream's boot_to_live_tv opens the Live TV app at boot, at once. This also
  * covers waking from standby, sends an optional deep link on a fresh boot (zen_autostart_uri), and waits for a
- * validated network first, up to 20 s: Ethernet and Wi-Fi come back seconds after the screen, and a streaming app
- * started offline shows an error.
+ * validated network first: a streaming app started offline shows an error. After standby, Ethernet and Wi-Fi come
+ * back seconds after the screen, so the wait is up to 20 s. After a boot it is up to 5 minutes: when the power
+ * comes back after a cut, the router starts again too, and the TV's first Wi-Fi scans look only on the channel it
+ * used last. Sensa started offline shows "no connection" after 30 s and, on retry, asks for the profile instead of
+ * logging in by itself.
  *
  * Only a link, never keys. Sensa plays the last channel at start by itself when its own "tune to live" option is
  * on, so it needs no link at all; minerva://content/livetv opens its guide on the last channel. Pressing OK in the
@@ -39,8 +42,10 @@ final class ZenAutostart {
     private static final long WAKE_WINDOW_MS = 10_000;
     /** The first Home this soon after boot is the boot's. */
     private static final long BOOT_WINDOW_MS = 180_000;
-    /** How long a boot or wake-up waits for a validated network before it opens the app anyway. */
+    /** How long a wake-up waits for a validated network before it opens the app anyway. */
     private static final long NETWORK_WAIT_MS = 20_000;
+    /** The same for a boot. Below the screensaver's usual 10 minutes, which would take Home off screen. */
+    private static final long BOOT_NETWORK_WAIT_MS = 300_000;
 
     // Static so they survive the activity being recreated; they only reset when the process dies.
     /** When the screen last came on (elapsedRealtime), or 0 once that wake-up has been handled. */
@@ -152,7 +157,7 @@ final class ZenAutostart {
         if (i == null) return;
         Log.i(TAG, (boot ? "boot" : "wake-up") + ": opening " + app + (i.getData() != null ? " with " + i.getData() : ""));
         pending = i;
-        networkDeadline = now + NETWORK_WAIT_MS;
+        networkDeadline = now + (boot ? BOOT_NETWORK_WAIT_MS : NETWORK_WAIT_MS);
         handler.removeCallbacks(openWhenOnline);
         openWhenOnline();
     }
