@@ -49,9 +49,9 @@ Keep your own TVs' folders in `mytvs/`: git ignores it.
 
 ## How ZenTV stays current
 
-ZenTV merges upstream's `main` regularly. Its own code lives in files named `Zen*` and `zen_*`, and upstream
-files carry only a few lines marked `ZenTV:`, so each merge stays small. Fixes that fit upstream's rules go
-back upstream as pull requests.
+Every week a workflow merges upstream's `main` into a pull request, and CI tests it before it lands. ZenTV's own
+code lives in files named `Zen*` and `zen_*`, and upstream files carry only a few lines marked `ZenTV:`, so each
+merge stays small. Fixes that fit upstream's rules go back upstream as pull requests.
 
 ## License
 
