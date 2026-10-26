@@ -17,4 +17,6 @@
     <string name="zen_sky_storm">Thunderstorm</string>
     <string name="zen_sky_hail">Thunderstorm with hail</string>
     <string name="zen_connecting">Connecting…</string>
+    <string name="zen_steps_name">ZenTV: app at power-on</string>
+    <string name="zen_steps_description">After the TV starts, plays the live TV app\'s last channel once its guide has loaded. Reads only which view has focus in that app, for 3 minutes.</string>
 </resources>

@@ -4,12 +4,17 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.util.Log;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * ZenTV's settings, read beside {@link Config} so that upstream class stays as it is: the zen_* values in
@@ -36,9 +41,11 @@ final class ZenConfig {
     /** App opened when the TV boots or wakes up onto Home (zen_autostart_app), and its deep link; empty = off. */
     final String autostartApp;
     final String autostartUri;
+    /** After a boot, links sent to that app once one of its views has focus (zen_autostart_steps, "view:link"). */
+    final List<String> autostartSteps;
 
     ZenConfig(boolean weather, double latitude, double longitude, String city, boolean dailyWallpaper,
-              String autostartApp, String autostartUri) {
+              String autostartApp, String autostartUri, List<String> autostartSteps) {
         boolean located = !Double.isNaN(latitude) && !Double.isNaN(longitude);
         this.city = located ? "" : city.trim();
         this.weather = weather && (located || !this.city.isEmpty());
@@ -47,6 +54,8 @@ final class ZenConfig {
         this.dailyWallpaper = dailyWallpaper;
         this.autostartApp = autostartApp.trim();
         this.autostartUri = this.autostartApp.isEmpty() ? "" : autostartUri.trim();
+        this.autostartSteps = this.autostartApp.isEmpty() ? Collections.<String>emptyList()
+                : Collections.unmodifiableList(new ArrayList<>(autostartSteps));
     }
 
     /** Anything here uses the network. */
@@ -65,7 +74,8 @@ final class ZenConfig {
                 coordinate(res.getString(R.string.longitude), Double.NaN, 180),
                 res.getBoolean(R.bool.zen_daily_wallpaper),
                 res.getString(R.string.zen_autostart_app),
-                res.getString(R.string.zen_autostart_uri));
+                res.getString(R.string.zen_autostart_uri),
+                Arrays.asList(res.getStringArray(R.array.zen_autostart_steps)));
     }
 
     /**
@@ -74,7 +84,7 @@ final class ZenConfig {
      */
     static ZenConfig from(JSONObject json, boolean weather, double latitude, double longitude, String city,
                           double skyLatitude, double skyLongitude, boolean dailyWallpaper,
-                          String autostartApp, String autostartUri) {
+                          String autostartApp, String autostartUri, List<String> autostartSteps) {
         if (json != null) {
             weather = json.opt("weather") instanceof Boolean ? json.optBoolean("weather") : weather;
             latitude = decimal(json.opt("weather_latitude"), latitude, 90);
@@ -83,12 +93,14 @@ final class ZenConfig {
             dailyWallpaper = json.opt("daily_wallpaper") instanceof Boolean ? json.optBoolean("daily_wallpaper") : dailyWallpaper;
             autostartApp = json.opt("autostart_app") instanceof String ? json.optString("autostart_app") : autostartApp;
             autostartUri = json.opt("autostart_uri") instanceof String ? json.optString("autostart_uri") : autostartUri;
+            autostartSteps = strings(json.opt("autostart_steps"), autostartSteps);
         }
         if ((Double.isNaN(latitude) || Double.isNaN(longitude)) && city.trim().isEmpty()) {
             latitude = skyLatitude;
             longitude = skyLongitude;
         }
-        return new ZenConfig(weather, latitude, longitude, city, dailyWallpaper, autostartApp, autostartUri);
+        return new ZenConfig(weather, latitude, longitude, city, dailyWallpaper, autostartApp, autostartUri,
+                autostartSteps);
     }
 
     /** A latitude or longitude from config.xml ("54.69"); the fallback when empty, not a number or out of range. */
@@ -105,6 +117,18 @@ final class ZenConfig {
         if (!(value instanceof Number)) return fallback;
         double d = ((Number) value).doubleValue();
         return Math.abs(d) <= limit ? d : fallback;
+    }
+
+    /** A JSON array's non-blank strings, trimmed; the fallback when the value is not an array. */
+    private static List<String> strings(Object value, List<String> fallback) {
+        if (!(value instanceof JSONArray)) return fallback;
+        JSONArray a = (JSONArray) value;
+        List<String> out = new ArrayList<>();
+        for (int i = 0; i < a.length(); i++) {
+            Object item = a.opt(i);
+            if (item instanceof String && !((String) item).trim().isEmpty()) out.add(((String) item).trim());
+        }
+        return out;
     }
 
     /** Any problem means "no overlay": Home never fails over a bad file. */

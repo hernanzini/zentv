@@ -15,4 +15,6 @@
     <string name="zen_sky_storm">Tormenta</string>
     <string name="zen_sky_hail">Tormenta con granizo</string>
     <string name="zen_connecting">Conectando…</string>
+    <string name="zen_steps_name">ZenTV: app al encender</string>
+    <string name="zen_steps_description">Después de encender la TV, reproduce el último canal de la app de TV en vivo cuando carga su guía. Solo lee qué vista tiene el foco en esa app, durante 3 minutos.</string>
 </resources>

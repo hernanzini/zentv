@@ -23,12 +23,19 @@
     <bool name="zen_daily_wallpaper">false</bool>
 
     <!-- App opened when the TV boots or wakes up from standby onto Home, so it comes on straight into, say, a
-         streaming live-TV app. It waits for a validated network first (up to 20 s). A wake-up into another app or
-         an HDMI input is left alone, and the Home button still shows Home. Uses a foreground service to stay alive
-         while the app is on screen. Empty: off.
-         zen_autostart_uri: a deep link sent to it on a fresh boot instead of its launch intent. Sensa
-         (ar.com.sensa.player) needs none when its own "Sintoniza En Vivo" option is on: it plays the last channel at
-         start by itself. minerva://content/livetv opens its guide on the last channel instead. -->
+         streaming live-TV app. It waits for a validated network first: up to 5 minutes after a boot, 20 s after
+         standby. A wake-up into another app or an HDMI input is left alone, and the Home button still shows Home.
+         Uses a foreground service to stay alive while the app is on screen. Empty: off.
+         zen_autostart_uri: a deep link sent to it on a fresh boot instead of its launch intent. For Sensa
+         (ar.com.sensa.player), minerva://content/livetv opens its guide on the last channel; Sensa never plays by
+         itself at start. -->
     <string name="zen_autostart_app" translatable="false"></string>
     <string name="zen_autostart_uri" translatable="false"></string>
+    <!-- After a boot, "view:link" entries: once the app's view with that id (or a view inside it) has focus, the
+         link goes to the app; the last entry's link ends it. Needs the accessibility service "ZenTV: app at
+         power-on" turned on, and listens for 3 minutes after the boot only. Sensa, to play the guide's channel:
+         grid:minerva://keycode/media_play, after browse_headers:minerva://content/livetv for when its side menu
+         has focus. Empty: off. -->
+    <string-array name="zen_autostart_steps" translatable="false">
+    </string-array>
 </resources>
