@@ -45,9 +45,22 @@ Merges from upstream must stay easy, so ZenTV touches upstream files as little a
 
 ## Keeping up with upstream
 
+Every Monday, `.github/workflows/zentv-upstream-sync.yml` merges upstream's `main` into the branch `sync/upstream`
+and opens a pull request into `main`. Before you merge it, try Home on a real TV. Merge it with a merge commit,
+never a squash, so the next sync starts from upstream's history.
+
+- The workflow needs the secret `ZENTV_SYNC_TOKEN`: a fine-grained personal access token for this repository
+  only, with Contents, Pull requests and Workflows set to read and write. Its owner creates it on GitHub and
+  stores it with `gh secret set ZENTV_SYNC_TOKEN -R hernanzini/zentv`. Never ask for it in a chat.
+- GitHub pauses a scheduled workflow after 60 days without activity in the repository. Turn it back on in the
+  Actions tab.
+
+When the merge conflicts, the workflow fails and names the files. Merge by hand then:
+
 ```bash
 git fetch upstream
-git merge upstream/main          # on a branch, then open a PR into ZenTV's main
+git switch -c sync/upstream-$(date +%Y%m%d) main
+git merge upstream/main          # then open a PR into ZenTV's main
 ```
 
 Resolve conflicts in favour of upstream's code plus the `ZenTV:` lines. Then run the checks below and try
