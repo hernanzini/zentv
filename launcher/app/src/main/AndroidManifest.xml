@@ -272,5 +272,20 @@
             android:launchMode="singleInstance"
             android:excludeFromRecents="true"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode" />
+
+        <!-- ZenTV (zen_autostart_steps): after a boot, sends the autostart app its links once the right view has
+             focus. Off until turned on in the accessibility settings (docs/zentv/CONFIG.md). -->
+        <service
+            android:name=".ZenAutostartSteps"
+            android:exported="false"
+            android:label="@string/zen_steps_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/zen_autostart_steps" />
+        </service>
     </application>
 </manifest>

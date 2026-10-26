@@ -15,6 +15,8 @@ import android.os.Handler;
 import android.os.SystemClock;
 import android.util.Log;
 
+import java.util.List;
+
 /**
  * ZenTV: opens one app when the TV is switched on onto Home (zen_autostart_app), for sets used mostly for a
  * streaming live-TV app such as Sensa. Upstream's boot_to_live_tv opens the Live TV app at boot, at once. This also
@@ -25,12 +27,13 @@ import android.util.Log;
  * used last. Sensa started offline shows "no connection" after 30 s and, on retry, asks for the profile instead of
  * logging in by itself.
  *
- * Only a link, never keys. Sensa never plays by itself at start: its build sets no default channel, and its "tune
- * to live" option acts only when a film or a recording ends. minerva://content/livetv opens its guide on the last
- * channel. Pressing OK in the guide by deep link (minerva://keycode/dpad_center) did not hold after a boot: a key
- * that came before the guide had loaded landed on Sensa's home screen and opened a live sports event. Its
+ * Only links, never blind keys. Sensa never plays by itself at start: its build sets no default channel, and its
+ * "tune to live" option acts only when a film or a recording ends. minerva://content/livetv opens its guide on the
+ * last channel. Pressing OK in the guide by deep link (minerva://keycode/dpad_center) did not hold after a boot: a
+ * key that came before the guide had loaded landed on Sensa's home screen and opened a live sports event. Its
  * channel_up "from outside" plays the last channel only once Sensa has played something since it started, so not
- * after a boot either.
+ * after a boot either. Further links wait for the screen they are meant for: ZenAutostartSteps (zen_autostart_steps)
+ * sends Play once the guide has focus.
  *
  * Waking from standby needs Home's process alive while the app is on screen, which ZenKeepAliveService (a
  * foreground service) keeps, and ZenHoldActivity holds the app until the network is back. Both run only while an
@@ -57,9 +60,12 @@ final class ZenAutostart {
     private final Handler handler;
     private final String app;
     private final String uri;
+    /** zen_autostart_steps, handed to ZenAutostartSteps when the app opens at a boot. */
+    private final List<String> steps;
     private boolean resumed;
     /** The app's intent while it waits for the network. */
     private Intent pending;
+    private boolean pendingBoot;
     private long networkDeadline;
     private final Runnable autostart = this::maybeAutostart;
     private final Runnable openWhenOnline = this::openWhenOnline;
@@ -90,11 +96,12 @@ final class ZenAutostart {
         }
     };
 
-    ZenAutostart(Activity activity, Handler handler, String app, String uri) {
+    ZenAutostart(Activity activity, Handler handler, String app, String uri, List<String> steps) {
         this.activity = activity;
         this.handler = handler;
         this.app = app;
         this.uri = uri;
+        this.steps = steps;
         IntentFilter screen = new IntentFilter(Intent.ACTION_SCREEN_ON);
         screen.addAction(Intent.ACTION_SCREEN_OFF);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -158,6 +165,7 @@ final class ZenAutostart {
         if (i == null) return;
         Log.i(TAG, (boot ? "boot" : "wake-up") + ": opening " + app + (i.getData() != null ? " with " + i.getData() : ""));
         pending = i;
+        pendingBoot = boot;
         networkDeadline = now + (boot ? BOOT_NETWORK_WAIT_MS : NETWORK_WAIT_MS);
         handler.removeCallbacks(openWhenOnline);
         openWhenOnline();
@@ -177,6 +185,7 @@ final class ZenAutostart {
         pending = null;
         try {
             activity.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            if (pendingBoot && !steps.isEmpty()) ZenAutostartSteps.arm(app, steps);
         } catch (ActivityNotFoundException | SecurityException e) {
             Log.w(TAG, "cannot open " + app + ": " + e);
         }

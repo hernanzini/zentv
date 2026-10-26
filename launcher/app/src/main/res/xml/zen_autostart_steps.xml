@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ZenTV (zen_autostart_steps). No events until ZenAutostart arms it at a boot: ZenAutostartSteps then asks for focus
+     changes from the autostart app only, for 3 minutes. View ids, to know which screen has focus; no touch
+     exploration, which apps take as TalkBack being on. -->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagReportViewIds"
+    android:canRetrieveWindowContent="true"
+    android:notificationTimeout="100"
+    android:description="@string/zen_steps_description" />

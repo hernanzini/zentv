@@ -14,7 +14,7 @@ Opt-in launcher features that upstream leaves out because they use the network o
 |---|---|---|
 | Weather line under the header | `ZenWeather`, `ZenWeatherIcon`, `ZenPlace`, layouts `zen_weather_*` | `api.open-meteo.com`, every 30 minutes while Home is on screen; `geocoding-api.open-meteo.com` once per `weather_city` |
 | Bing's picture of the day as the wallpaper | `ZenDailyPhoto` | `www.bing.com`, once a day while Home is on screen |
-| An app opened at power-on (boot and wake from standby), after the network is up | `ZenAutostart`, `ZenHoldActivity`, `ZenKeepAliveService` | None (waits for it) |
+| An app opened at power-on (boot and wake from standby), after the network is up; after a boot, links sent to it once the right view has focus | `ZenAutostart`, `ZenHoldActivity`, `ZenKeepAliveService`, `ZenAutostartSteps` (an accessibility service) | None (waits for it) |
 
 `ZenTv` owns them all: lifecycle, downloads (`ZenNet`, HTTPS only, size-capped) and views. `ZenConfig` reads the
 keys.
@@ -26,6 +26,9 @@ keys.
   on screen, and never sends identifiers, accounts or analytics.
 - **Background service:** `ZenKeepAliveService` is a foreground service, which upstream does not allow. It runs
   only while `zen_autostart_app` is set. No other background work: no polling while another app is on screen.
+- **Accessibility:** `ZenAutostartSteps` reads which view has focus in the autostart app, for 3 minutes after a
+  boot, and gets no events otherwise. It never turns on touch exploration, and it sends the app's own deep
+  links, never key events.
 - **APK gate:** upstream's, in `.github/workflows/ci.yml` and the root AGENTS.md. ZenTV's code adds about 20 KB
   to the APK: keep its share small. If a merge from upstream puts ZenTV over the gate, cut ZenTV's code first.
 - **Everything else is upstream's:** `minSdk` 26, no new launcher dependencies, disable never uninstall, the
