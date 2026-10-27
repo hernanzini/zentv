@@ -11,7 +11,9 @@ before. Both scripts now go through this record: `disable.sh` writes it before t
 reaches the TV, and `restore.sh` replays it.
 
 Records live in ~/.cleanyourtv/, one per TV and list. The first one wins: a retry after a
-half-applied list must not record the broken state as the original. A later run, and check.py --fix,
+half-applied list must not record the broken state as the original. The TV is the address it was
+reached at, so a set that takes a new address gets a new record: save() warns when a record under
+another address still holds, as enabled, a package it just found disabled (#2139). A later run, and check.py --fix,
 only add the names the list gained since then, with their state before this list disabled them, and
 record a package that was absent then and is installed and enabled now as enabled.
 """
@@ -114,10 +116,61 @@ def lan_address(host):
         return None
 
 
+def list_digest(list_path):
+    """The eight hex characters in a record's name that identify the list it was taken for."""
+    return hashlib.sha1(str(Path(list_path).resolve()).encode()).hexdigest()[:8]
+
+
 def record_name(list_path, tag):
-    digest = hashlib.sha1(str(Path(list_path).resolve()).encode()).hexdigest()[:8]
+    digest = list_digest(list_path)
     tag = re.sub(r"[^A-Za-z0-9.-]", "_", tag or "no-host")
     return Path.home() / ".cleanyourtv" / f"recovery-{tag}-{digest}.json"
+
+
+def records_under_other_addresses(list_path, path):
+    """The other records taken for this same list, as (tag, path), the file this run writes left out.
+
+    A record is one file per TV and list, and on the network the TV is the address it was reached at,
+    so a set that takes a new DHCP lease leaves its record behind under the old address: the next run
+    finds no record for the new one and writes a fresh one out of a TV that is already cleaned (#2139).
+    """
+    folder = path.parent
+    if not folder.is_dir():
+        return []
+    digest = list_digest(list_path)
+    suffix = f"-{digest}.json"
+    found = []
+    for other in sorted(folder.glob(f"recovery-*{suffix}")):
+        if other.name == path.name:
+            continue
+        found.append((other.name[len("recovery-"):-len(suffix)], other))
+    return found
+
+
+def cleaned_by_another_record(list_path, path, disabled):
+    """The record for this list, under another address, that reads like this TV before an earlier run.
+
+    A package this run finds disabled, which that record holds as enabled before its own cleanup, is
+    the shape of the same TV at a new address: the earlier run disabled it, and the record it left is
+    the only place that still says it was on. A second TV cleaned with the same list is the other
+    reading, and the warning says so rather than being sure here. A record that cannot be read is left
+    to the run that owns it: this is one more line of output, not a reason to stop.
+    """
+    found = []
+    for tag, other in records_under_other_addresses(list_path, path):
+        try:
+            with open(other) as handle:
+                record = json.load(handle)
+        except (OSError, ValueError):
+            continue
+        recorded = record.get("packages") if isinstance(record, dict) else None
+        if not isinstance(recorded, dict):
+            continue
+        names = sorted(name for name, state in recorded.items()
+                       if state == "enabled" and name in disabled)
+        if names:
+            found.append((tag, other, names))
+    return found
 
 
 def record_path(list_path, host):
@@ -415,6 +468,23 @@ def save(list_path, host):
     else:
         print(f"HOME before: {home or 'no component answered'}")
     print("undo with tools/restore.sh <same list>; keep this file, it is the only copy.")
+    # A fresh record is written whenever this address has none, which is also what a TV that took a
+    # new DHCP lease looks like: the record from before its cleanup is still under the old address,
+    # and nothing in it reaches undo from here (#2139). Say so while the owner is still at the TV.
+    for tag, other, names in cleaned_by_another_record(list_path, path, disabled):
+        shown = ", ".join(names[:5]) + (", ..." if len(names) > 5 else "")
+        sys.stderr.write(
+            f"warning: a new record was written for this list, and one for the same list is under "
+            f"{tag}:\n"
+            f"  {other}\n"
+            f"{len(names)} of the packages disabled now are recorded there as enabled before an "
+            f"earlier cleanup ({shown}).\n"
+            "If this is that TV on a new address (a new DHCP lease, or the Wi-Fi forget and re-join "
+            "the setupwraith step asks for), undo run from here leaves those off. Run tools/restore.sh "
+            "at the old address first, or move that record to "
+            f"~/.cleanyourtv/{path.name} once you are sure it is this TV.\n"
+            "If this is a second set cleaned with the same list, nothing is wrong: both records "
+            "stay.\n")
     return 0
 
 
