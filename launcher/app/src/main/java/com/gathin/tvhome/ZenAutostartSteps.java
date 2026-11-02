@@ -66,6 +66,8 @@ public class ZenAutostartSteps extends AccessibilityService {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable check = this::check;
+    /** restore_key_services was on when this connected: noted for upstream's ServiceRepair, like its key helpers. */
+    private boolean repairRecord;
 
     /** Called on the main thread when ZenAutostart opens app at a boot. */
     static void arm(String app, List<String> entries) {
@@ -112,7 +114,18 @@ public class ZenAutostartSteps extends AccessibilityService {
     protected void onServiceConnected() {
         super.onServiceConnected();
         live = this;
+        // restore_key_services: an update or a force stop takes this service off the enabled list (TCL, Android 9);
+        // Home puts it back, as it does for upstream's key helpers.
+        repairRecord = Config.load(this).restoreKeyServices;
+        if (repairRecord) ServiceRepair.connected(this, getClass());
         listen();
+    }
+
+    /** Unbound by Android: the person turned the service off, so Home doesn't put it back (ServiceRepair). */
+    @Override
+    public boolean onUnbind(Intent intent) {
+        if (repairRecord) ServiceRepair.disconnected(this, getClass());
+        return super.onUnbind(intent);
     }
 
     @Override
