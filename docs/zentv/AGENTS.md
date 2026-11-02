@@ -29,8 +29,11 @@ keys.
 - **Accessibility:** `ZenAutostartSteps` reads which view has focus in the autostart app, for 3 minutes after a
   boot, and gets no events otherwise. It never turns on touch exploration, and it sends the app's own deep
   links, never key events.
-- **APK gate:** upstream's, in `.github/workflows/ci.yml` and the root AGENTS.md. ZenTV's code adds about 20 KB
-  to the APK: keep its share small. If a merge from upstream puts ZenTV over the gate, cut ZenTV's code first.
+- **APK gate:** upstream's 589,824 B (576 KB) plus 24 KB for ZenTV's own features: the APK must stay under
+  614,400 B (600 KB). `.github/workflows/ci.yml` keeps upstream's check and, on a line marked `ZenTV:`, takes
+  24 KB off the measured size first, so upstream's tests and docs, which read 589,824 B, still hold. ZenTV's
+  code adds about 21 KB: keep its share small. If a merge from upstream puts ZenTV over 600 KB, cut ZenTV's
+  code first, and raise the allowance on that line and here only when the features are still worth it.
 - **Everything else is upstream's:** `minSdk` 26, no new launcher dependencies, disable never uninstall, the
   Home guard, no identifiers in commits, real-TV checks with screenshots.
 
@@ -78,7 +81,7 @@ The root AGENTS.md checks apply. In short:
 ```bash
 python3 -m unittest discover -s tests -v
 cd launcher && ./gradlew --no-daemon testReleaseUnitTest lintRelease assembleRelease
-stat -f %z app/build/outputs/apk/release/app-release.apk   # macOS; Linux: stat -c %s
+stat -f %z app/build/outputs/apk/release/app-release.apk   # under 614,400 B; macOS; Linux: stat -c %s
 ```
 
 ZenTV's JVM tests are `Zen*Test.java` in `launcher/app/src/test/`.

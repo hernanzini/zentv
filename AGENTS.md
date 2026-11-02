@@ -4,9 +4,8 @@ Instructions for coding agents (Claude Code, Codex, Gemini CLI, Cursor, Copilot 
 this repository. People should start with [README.md](README.md) and [CONTRIBUTING.md](CONTRIBUTING.md);
 this file repeats their rules in the form an agent needs, and links to them for the detail.
 
-> **This is ZenTV, a fork of cleanyourtv.** Everything here is upstream's guide and still applies, except what
-> [`docs/zentv/AGENTS.md`](docs/zentv/AGENTS.md) changes (network for opt-in features, a foreground service, where
-> ZenTV code goes). Read that file before any task in this repository.
+> **This is ZenTV, a fork of cleanyourtv.** This guide is upstream's and still applies. Read
+> [`docs/zentv/AGENTS.md`](docs/zentv/AGENTS.md) first: what ZenTV changes wins over this file.
 
 ## First: which job are you doing?
 
