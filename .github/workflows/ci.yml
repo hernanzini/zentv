@@ -70,4 +70,5 @@ jobs:
         run: |
           size=$(stat -c %s launcher/app/build/outputs/apk/release/app-release.apk)
           echo "release APK: $((size / 1024)) KB"
+          size=$((size - 24576))   # ZenTV: 24 KB for its own features on top of upstream's gate (docs/zentv/AGENTS.md)
           test "$size" -lt 589824 || { echo "APK is over 576 KB; the launcher targets 1 GB TVs, keep it small"; exit 1; }
