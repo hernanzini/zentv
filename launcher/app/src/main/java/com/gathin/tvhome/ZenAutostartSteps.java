@@ -14,7 +14,9 @@ import android.view.accessibility.AccessibilityNodeInfo;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * ZenTV (zen_autostart_steps): after a boot, sends the app ZenAutostart opened a few deep links, each one only once a
@@ -23,9 +25,15 @@ import java.util.List;
  * marked channel only once the guide has loaded: sent blind, a key lands on whatever screen Sensa shows then. Here
  * the link waits for the guide's view ("grid") to have focus.
  *
- * An accessibility service, because nothing else can see another app's views. It reads the id of the focused view
- * and of its parents, nothing else; it listens only for WINDOW_MS after ZenAutostart armed it at a boot, never after
- * a wake-up from standby. It does not ask for touch exploration, which apps (Sensa) take as TalkBack being on.
+ * Sensa's links only release a key (its emulateKey sends ACTION_UP), so they act on keys an app handles on release
+ * (OK, Play, Back) and never move the focus: a Right link leaves its side menu open. A "view:focus:other" entry
+ * moves the focus itself, with ACTION_FOCUS on the app's other view, when the screen shows it; when it does not,
+ * the next entry for the same view applies.
+ *
+ * An accessibility service, because nothing else can see another app's views. It reads the ids of the focused view,
+ * of its parents and of the view a focus step names, nothing else; it listens only for WINDOW_MS after ZenAutostart
+ * armed it at a boot, never after a wake-up from standby. It does not ask for touch exploration, which apps (Sensa)
+ * take as TalkBack being on.
  * Off until the person turns it on (docs/zentv/CONFIG.md).
  */
 public class ZenAutostartSteps extends AccessibilityService {
@@ -43,14 +51,20 @@ public class ZenAutostartSteps extends AccessibilityService {
     /** At most this many links per boot, whatever the app does. */
     private static final int MAX_LINKS = 6;
 
-    /** One "view:link" entry: the link goes to the app when the view with this id, or one inside it, has focus. */
+    /**
+     * One "view:link" entry: the link goes to the app when the view with this id, or one inside it, has focus. A
+     * link "focus:other" moves the focus to the app's view "other" instead.
+     */
     static final class Step {
         final String view;
         final String link;
+        /** The view to move the focus to, for a "focus:" link; null for a deep link. */
+        final String focus;
 
         Step(String view, String link) {
             this.view = view;
             this.link = link;
+            this.focus = link.startsWith("focus:") ? link.substring("focus:".length()).trim() : null;
         }
     }
 
@@ -61,6 +75,8 @@ public class ZenAutostartSteps extends AccessibilityService {
     private static int linksSent;
     private static int lastStepSent;
     private static long lastLinkAt;
+    /** Focus steps already tried this boot: when the focus stays put, the next entry for that view applies. */
+    private static final Set<Integer> focusTried = new HashSet<>();
     /** The connected service, if any, so that arming can start the events. */
     private static ZenAutostartSteps live;
 
@@ -79,6 +95,7 @@ public class ZenAutostartSteps extends AccessibilityService {
         linksSent = 0;
         lastStepSent = 0;
         lastLinkAt = 0;
+        focusTried.clear();
         if (live != null) live.listen();
     }
 
@@ -90,7 +107,9 @@ public class ZenAutostartSteps extends AccessibilityService {
             if (colon <= 0) continue;
             String view = e.substring(0, colon).trim();
             String link = e.substring(colon + 1).trim();
-            if (!view.isEmpty() && !link.isEmpty()) out.add(new Step(view, link));
+            if (view.isEmpty() || link.isEmpty()) continue;
+            Step step = new Step(view, link);
+            if (step.focus == null || !step.focus.isEmpty()) out.add(step);
         }
         return out;
     }
@@ -101,13 +120,21 @@ public class ZenAutostartSteps extends AccessibilityService {
      * the app opens. The nearest view wins, so a step for a container covers the views inside it.
      */
     static int match(List<Step> steps, String app, List<String> ids) {
+        List<Integer> found = matches(steps, app, ids);
+        return found.isEmpty() ? -1 : found.get(0);
+    }
+
+    /** Every step for the nearest matching view, in the order they are listed: the first, then its fallbacks. */
+    static List<Integer> matches(List<Step> steps, String app, List<String> ids) {
+        List<Integer> found = new ArrayList<>();
         for (String id : ids) {
             if (id == null) continue;
             for (int i = 0; i < steps.size(); i++) {
-                if (id.equals(app + ":id/" + steps.get(i).view)) return i;
+                if (id.equals(app + ":id/" + steps.get(i).view)) found.add(i);
             }
+            if (!found.isEmpty()) break;
         }
-        return -1;
+        return found;
     }
 
     @Override
@@ -184,32 +211,60 @@ public class ZenAutostartSteps extends AccessibilityService {
             return;
         }
         List<Step> steps = armedSteps;
-        int i = match(steps, armedApp, focusedIds());
-        boolean last = i == steps.size() - 1;
-        if (i < 0 || (last && lastStepSent >= 2) || linksSent >= MAX_LINKS) {
+        List<Integer> found = matches(steps, armedApp, focusedIds());
+        if (found.isEmpty() || linksSent >= MAX_LINKS) {
             // Nothing to do on this screen; once the last link went, the app has left the view: done.
             if (lastStepSent > 0 || linksSent >= MAX_LINKS) disarm();
             return;
         }
-        long wait = lastLinkAt + GAP_MS - SystemClock.elapsedRealtime();
-        if (lastLinkAt != 0 && wait > 0) {
-            handler.postDelayed(check, wait);
+        for (int i : found) {
+            Step step = steps.get(i);
+            if (step.focus != null) {
+                // Tried before and the focus stayed, or the screen lacks that view: the next entry for this view.
+                if (focusTried.contains(i) || !focusView(step.focus)) continue;
+                Log.i(TAG, "focus on " + step.view + ": moving the focus to " + step.focus);
+                focusTried.add(i);
+                linksSent++;
+                handler.postDelayed(check, GAP_MS);   // the focus change brings an event; this covers none
+                return;
+            }
+            boolean last = i == steps.size() - 1;
+            if (last && lastStepSent >= 2) {
+                disarm();
+                return;
+            }
+            long wait = lastLinkAt + GAP_MS - SystemClock.elapsedRealtime();
+            if (lastLinkAt != 0 && wait > 0) {
+                handler.postDelayed(check, wait);
+                return;
+            }
+            Log.i(TAG, "focus on " + step.view + ": sending " + step.link);
+            linksSent++;
+            lastLinkAt = SystemClock.elapsedRealtime();
+            if (last) lastStepSent++;
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(step.link)).setPackage(armedApp)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                                | Intent.FLAG_ACTIVITY_SINGLE_TOP));
+            } catch (ActivityNotFoundException | SecurityException e) {
+                Log.w(TAG, "cannot send " + step.link + ": " + e);
+                disarm();
+                return;
+            }
+            if (last) handler.postDelayed(check, GAP_MS);
             return;
         }
-        Log.i(TAG, "focus on " + steps.get(i).view + ": sending " + steps.get(i).link);
-        linksSent++;
-        lastLinkAt = SystemClock.elapsedRealtime();
-        if (last) lastStepSent++;
-        try {
-            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(steps.get(i).link)).setPackage(armedApp)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP
-                            | Intent.FLAG_ACTIVITY_SINGLE_TOP));
-        } catch (ActivityNotFoundException | SecurityException e) {
-            Log.w(TAG, "cannot send " + steps.get(i).link + ": " + e);
-            disarm();
-            return;
+    }
+
+    /** Moves the input focus to the armed app's view with this id, when the active window shows it. */
+    private boolean focusView(String view) {
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) return false;
+        for (AccessibilityNodeInfo node : root.findAccessibilityNodeInfosByViewId(armedApp + ":id/" + view)) {
+            if (node.isVisibleToUser() && node.isFocusable()
+                    && node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)) return true;
         }
-        if (last) handler.postDelayed(check, GAP_MS);
+        return false;
     }
 
     /** The focused view's id, then its parents', in the active window. */

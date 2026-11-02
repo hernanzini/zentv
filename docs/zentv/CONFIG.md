@@ -23,7 +23,8 @@ default; a key of the wrong type keeps the default.
   "daily_wallpaper": true,
   "autostart_app": "ar.com.sensa.player",
   "autostart_uri": "minerva://content/livetv",
-  "autostart_steps": ["browse_headers:minerva://content/livetv", "grid:minerva://keycode/media_play"]
+  "autostart_steps": ["browse_headers:focus:grid", "browse_headers:minerva://content/livetv",
+                      "grid:minerva://keycode/media_play"]
 }
 ```
 
@@ -90,12 +91,17 @@ app at once and sends no deep link.
 ### Steps after a boot
 
 `autostart_steps` lists `"view:link"` entries. After a boot, once the `autostart_app` view with that id, or a view
-inside it, has focus, ZenTV sends the link to the app. The last entry ends it. For Sensa:
+inside it, has focus, ZenTV sends the link to the app. The last entry ends it. A link `focus:other` moves the focus
+to the app's view `other` instead, when the screen shows it; when it does not, the next entry for the same view
+applies. For Sensa:
 
 - `grid:minerva://keycode/media_play`: `grid` is the guide. In the guide, the first OK only expands the program,
   and Play plays the marked channel, the last one watched.
-- `browse_headers:minerva://content/livetv`, listed first: after a boot Sensa sometimes shows its side menu,
-  over the guide or over its home screen. The guide link again closes the menu and gives the guide focus.
+- `browse_headers:focus:grid`, listed first: after a boot Sensa sometimes shows its side menu over the guide.
+  Moving the focus to the guide closes the menu. Sensa's links only release a key, so a Right link cannot do it,
+  and its guide link leaves the menu open.
+- `browse_headers:minerva://content/livetv`, after it: when the menu is over Sensa's home screen, there is no
+  guide to focus, and the guide link opens it.
 
 To find a view's id, open the app on the screen you want and run
 `tools/tv.py 'uiautomator dump /data/local/tmp/ui.xml && cat /data/local/tmp/ui.xml'`: the focused node has
@@ -119,7 +125,7 @@ for upstream's key helpers. That install grants the launcher `WRITE_SECURE_SETTI
 setting to it, not only the accessibility list.
 
 - The service gets no events until a boot opens the app, then only the app's focus changes, for 3 minutes. It
-  reads the id of the focused view and of its parents, nothing else.
+  reads the ids of the focused view, of its parents and of the view a `focus:` step names, nothing else.
 - It acts after a boot only, never after standby. A view must keep focus for 1.5 s, links go at least 5 s
   apart, and at most 6 per boot. The last entry's link goes again once when its view still has focus 5 s later.
 - It does not turn on touch exploration, so apps do not take it as TalkBack. Sensa's guide ignores OK when

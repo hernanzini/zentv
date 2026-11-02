@@ -27,8 +27,8 @@ keys.
 - **Background service:** `ZenKeepAliveService` is a foreground service, which upstream does not allow. It runs
   only while `zen_autostart_app` is set. No other background work: no polling while another app is on screen.
 - **Accessibility:** `ZenAutostartSteps` reads which view has focus in the autostart app, for 3 minutes after a
-  boot, and gets no events otherwise. It never turns on touch exploration, and it sends the app's own deep
-  links, never key events.
+  boot, and gets no events otherwise. It never turns on touch exploration. It sends the app's own deep links,
+  never key events, and its only action on the app's views is moving the focus (`focus:` steps).
 - **APK gate:** upstream's 589,824 B (576 KB) plus 24 KB for ZenTV's own features: the APK must stay under
   614,400 B (600 KB). `.github/workflows/ci.yml` keeps upstream's check and, on a line marked `ZenTV:`, takes
   24 KB off the measured size first, so upstream's tests and docs, which read 589,824 B, still hold. ZenTV's

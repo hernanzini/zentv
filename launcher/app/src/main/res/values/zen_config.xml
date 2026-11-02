@@ -32,10 +32,11 @@
     <string name="zen_autostart_app" translatable="false"></string>
     <string name="zen_autostart_uri" translatable="false"></string>
     <!-- After a boot, "view:link" entries: once the app's view with that id (or a view inside it) has focus, the
-         link goes to the app; the last entry's link ends it. Needs the accessibility service "ZenTV: app at
-         power-on" turned on, and listens for 3 minutes after the boot only. Sensa, to play the guide's channel:
-         grid:minerva://keycode/media_play, after browse_headers:minerva://content/livetv for when its side menu
-         has focus. Empty: off. -->
+         link goes to the app; the last entry's link ends it. A link "focus:other" moves the focus to the app's
+         view "other" instead, or, without one on screen, lets the next entry for the same view apply. Needs the
+         accessibility service "ZenTV: app at power-on" turned on, and listens for 3 minutes after the boot only.
+         Sensa, to play the guide's channel: browse_headers:focus:grid, browse_headers:minerva://content/livetv and
+         grid:minerva://keycode/media_play. Empty: off. -->
     <string-array name="zen_autostart_steps" translatable="false">
     </string-array>
 </resources>
