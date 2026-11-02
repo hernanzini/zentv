@@ -53,4 +53,25 @@ public class ZenAutostartStepsTest {
     public void anotherAppsViewWithTheSameIdDoesNotMatch() {
         assertEquals(-1, ZenAutostartSteps.match(SENSA, APP, Arrays.asList("com.gathin.tvhome:id/grid")));
     }
+
+    private static final List<ZenAutostartSteps.Step> MENU = ZenAutostartSteps.parse(Arrays.asList(
+            "browse_headers:focus:grid", "browse_headers:minerva://content/livetv", "grid:minerva://keycode/media_play"));
+
+    @Test
+    public void aFocusLinkNamesTheViewToFocus() {
+        assertEquals("grid", MENU.get(0).focus);
+        assertEquals(null, MENU.get(1).focus);
+    }
+
+    @Test
+    public void aFocusLinkWithoutAViewIsSkipped() {
+        assertEquals(0, ZenAutostartSteps.parse(Arrays.asList("browse_headers:focus:", "browse_headers:focus: ")).size());
+    }
+
+    @Test
+    public void aViewWithTwoEntriesGivesBothInOrder() {
+        assertEquals(Arrays.asList(0, 1), ZenAutostartSteps.matches(MENU, APP, Arrays.asList(
+                "ar.com.sensa.player:id/row_header", "ar.com.sensa.player:id/browse_headers")));
+        assertEquals(Arrays.asList(2), ZenAutostartSteps.matches(MENU, APP, Arrays.asList("ar.com.sensa.player:id/grid")));
+    }
 }
