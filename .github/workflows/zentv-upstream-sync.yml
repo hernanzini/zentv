@@ -9,7 +9,8 @@ name: ZenTV upstream sync
 # done by hand (docs/zentv/AGENTS.md, "Keeping up with upstream").
 on:
   schedule:
-    - cron: "0 9 * * 1"   # Mondays, 09:00 UTC
+    # Off the hour: GitHub delays or drops scheduled runs at :00, when its load peaks.
+    - cron: "17 9 * * 1"   # Mondays, 09:17 UTC
   workflow_dispatch:
 
 permissions:
