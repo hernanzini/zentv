@@ -20,7 +20,7 @@ public class ZenConfigTest {
     /** A theme's config.json over config.xml's defaults: everything off, no place. */
     private static ZenConfig theme(String json) throws Exception {
         return ZenConfig.from(json == null ? null : new JSONObject(json), false, NONE, NONE, "", NONE, NONE, false, "", "",
-                NO_STEPS);
+                NO_STEPS, false);
     }
 
     @Test
@@ -58,12 +58,12 @@ public class ZenConfigTest {
     public void theSkysPlaceIsTheLastResort() throws Exception {
         assertFalse(theme("{\"weather\":true}").weather);
         JSONObject on = new JSONObject("{\"weather\":true}");
-        ZenConfig sky = ZenConfig.from(on, false, NONE, NONE, "", 54.69, 25.28, false, "", "", NO_STEPS);
+        ZenConfig sky = ZenConfig.from(on, false, NONE, NONE, "", 54.69, 25.28, false, "", "", NO_STEPS, false);
         assertTrue(sky.weather);
         assertEquals(54.69, sky.latitude, 0);
         // A city given for the weather comes before the sky's coordinates.
         ZenConfig city = ZenConfig.from(new JSONObject("{\"weather\":true,\"weather_city\":\"Vilnius\"}"),
-                false, NONE, NONE, "", 54.69, 25.28, false, "", "", NO_STEPS);
+                false, NONE, NONE, "", 54.69, 25.28, false, "", "", NO_STEPS, false);
         assertEquals("Vilnius", city.city);
         assertTrue(Double.isNaN(city.latitude));
     }
@@ -72,7 +72,7 @@ public class ZenConfigTest {
     public void wrongTypesAndRangesKeepTheDefaults() throws Exception {
         JSONObject json = new JSONObject("{\"weather\":\"yes\",\"weather_latitude\":95,\"weather_longitude\":\"-58\","
                 + "\"weather_city\":7,\"daily_wallpaper\":1,\"autostart_app\":false}");
-        ZenConfig c = ZenConfig.from(json, true, 10, 20, "", NONE, NONE, false, "", "", NO_STEPS);
+        ZenConfig c = ZenConfig.from(json, true, 10, 20, "", NONE, NONE, false, "", "", NO_STEPS, false);
         assertTrue(c.weather);
         assertEquals(10, c.latitude, 0);
         assertEquals(20, c.longitude, 0);
@@ -108,5 +108,13 @@ public class ZenConfigTest {
     @Test
     public void stepsNeedAnApp() throws Exception {
         assertTrue(theme("{\"autostart_steps\":[\"grid:minerva://keycode/media_play\"]}").autostartSteps.isEmpty());
+    }
+
+    @Test
+    public void restoreStandbyIsOffByDefaultAndNeedsAnApp() throws Exception {
+        assertFalse(theme("{\"autostart_app\":\"ar.com.sensa.player\"}").restoreStandby);
+        assertTrue(theme("{\"autostart_app\":\"ar.com.sensa.player\",\"restore_standby\":true}").restoreStandby);
+        assertFalse(theme("{\"restore_standby\":true}").restoreStandby);
+        assertFalse(theme("{\"autostart_app\":\"ar.com.sensa.player\",\"restore_standby\":\"yes\"}").restoreStandby);
     }
 }

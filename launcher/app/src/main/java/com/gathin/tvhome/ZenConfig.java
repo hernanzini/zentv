@@ -43,9 +43,11 @@ final class ZenConfig {
     final String autostartUri;
     /** After a boot, links sent to that app once one of its views has focus (zen_autostart_steps, "view:link"). */
     final List<String> autostartSteps;
+    /** After a boot that found the TV in standby when it went down, back to standby (zen_restore_standby). */
+    final boolean restoreStandby;
 
     ZenConfig(boolean weather, double latitude, double longitude, String city, boolean dailyWallpaper,
-              String autostartApp, String autostartUri, List<String> autostartSteps) {
+              String autostartApp, String autostartUri, List<String> autostartSteps, boolean restoreStandby) {
         boolean located = !Double.isNaN(latitude) && !Double.isNaN(longitude);
         this.city = located ? "" : city.trim();
         this.weather = weather && (located || !this.city.isEmpty());
@@ -56,6 +58,7 @@ final class ZenConfig {
         this.autostartUri = this.autostartApp.isEmpty() ? "" : autostartUri.trim();
         this.autostartSteps = this.autostartApp.isEmpty() ? Collections.<String>emptyList()
                 : Collections.unmodifiableList(new ArrayList<>(autostartSteps));
+        this.restoreStandby = restoreStandby && !this.autostartApp.isEmpty();
     }
 
     /** Anything here uses the network. */
@@ -75,7 +78,8 @@ final class ZenConfig {
                 res.getBoolean(R.bool.zen_daily_wallpaper),
                 res.getString(R.string.zen_autostart_app),
                 res.getString(R.string.zen_autostart_uri),
-                Arrays.asList(res.getStringArray(R.array.zen_autostart_steps)));
+                Arrays.asList(res.getStringArray(R.array.zen_autostart_steps)),
+                res.getBoolean(R.bool.zen_restore_standby));
     }
 
     /**
@@ -84,7 +88,8 @@ final class ZenConfig {
      */
     static ZenConfig from(JSONObject json, boolean weather, double latitude, double longitude, String city,
                           double skyLatitude, double skyLongitude, boolean dailyWallpaper,
-                          String autostartApp, String autostartUri, List<String> autostartSteps) {
+                          String autostartApp, String autostartUri, List<String> autostartSteps,
+                          boolean restoreStandby) {
         if (json != null) {
             weather = json.opt("weather") instanceof Boolean ? json.optBoolean("weather") : weather;
             latitude = decimal(json.opt("weather_latitude"), latitude, 90);
@@ -94,13 +99,14 @@ final class ZenConfig {
             autostartApp = json.opt("autostart_app") instanceof String ? json.optString("autostart_app") : autostartApp;
             autostartUri = json.opt("autostart_uri") instanceof String ? json.optString("autostart_uri") : autostartUri;
             autostartSteps = strings(json.opt("autostart_steps"), autostartSteps);
+            restoreStandby = json.opt("restore_standby") instanceof Boolean ? json.optBoolean("restore_standby") : restoreStandby;
         }
         if ((Double.isNaN(latitude) || Double.isNaN(longitude)) && city.trim().isEmpty()) {
             latitude = skyLatitude;
             longitude = skyLongitude;
         }
         return new ZenConfig(weather, latitude, longitude, city, dailyWallpaper, autostartApp, autostartUri,
-                autostartSteps);
+                autostartSteps, restoreStandby);
     }
 
     /** A latitude or longitude from config.xml ("54.69"); the fallback when empty, not a number or out of range. */

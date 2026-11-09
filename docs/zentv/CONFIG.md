@@ -13,6 +13,7 @@ default; a key of the wrong type keeps the default.
 | `daily_wallpaper` | `zen_daily_wallpaper` | bool | Bing's picture of the day behind Home |
 | `autostart_app`, `autostart_uri` | `zen_autostart_app`, `zen_autostart_uri` | string | The app opened when the TV boots or wakes up onto Home, and an optional deep link sent to it instead of its launch intent |
 | `autostart_steps` | `zen_autostart_steps` | list of strings | After a boot, `"view:link"` entries: each link goes to that app once its view with that id has focus. Needs an accessibility service ([below](#steps-after-a-boot)) |
+| `restore_standby` | `zen_restore_standby` | bool | After a power cut, a TV that was in standby goes back to standby instead of opening `autostart_app`. Only for a box or TV that starts by itself when the power comes back ([below](#back-to-standby-after-a-power-cut)) |
 
 ## Example
 
@@ -132,3 +133,21 @@ setting to it, not only the accessibility list.
   TalkBack is on.
 - If the app changes its screens in an update, the ids no longer match and nothing is sent: the app stays where
   `autostart_uri` left it.
+
+### Back to standby after a power cut
+
+Android always boots awake. A TV box that starts by itself when the power comes back then switches the TV on
+through HDMI-CEC, even when both were off before the cut. `restore_standby` keeps them off:
+
+- Home notes when the TV goes to standby and when it wakes up.
+- A boot that finds the TV was in standby puts it back in standby after 8 s, and does not open `autostart_app`.
+  HDMI-CEC switches the TV off again. The TV shows Home for those seconds.
+- The next wake-up with the remote opens the app as a boot would: with `autostart_uri` and `autostart_steps`.
+- A TV that was on when the power went comes back on with the app, as before.
+
+It needs `autostart_app`, Android 9 or later, and the accessibility service of the [steps](#steps-after-a-boot)
+turned on: only an accessibility service can put the TV in standby. Without one, the boot opens the app as before.
+
+Turn it on only for a box or TV that starts by itself after a cut. A TV that stays off until its remote is
+pressed also boots then (TCL UnionTV, Android 9): with `restore_standby`, that power-on would go straight back to
+standby.

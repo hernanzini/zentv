@@ -134,7 +134,8 @@ final class ZenTv {
         if (cfg.weather) attachWeather();
         if (cfg.dailyWallpaper) attachDailyWallpaper();
         autostart = cfg.autostartApp.isEmpty() ? null
-                : new ZenAutostart(activity, handler, cfg.autostartApp, cfg.autostartUri, cfg.autostartSteps);
+                : new ZenAutostart(activity, handler, cfg.autostartApp, cfg.autostartUri, cfg.autostartSteps,
+                        cfg.restoreStandby);
     }
 
     void resume() {
