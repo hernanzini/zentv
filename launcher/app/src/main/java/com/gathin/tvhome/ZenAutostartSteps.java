@@ -3,11 +3,15 @@ package com.gathin.tvhome;
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.content.ActivityNotFoundException;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -34,6 +38,10 @@ import java.util.Set;
  * of its parents and of the view a focus step names, nothing else; it listens only for WINDOW_MS after ZenAutostart
  * armed it at a boot, never after a wake-up from standby. It does not ask for touch exploration, which apps (Sensa)
  * take as TalkBack being on.
+ *
+ * zen_restore_standby: it also puts the TV back in standby when ZenAutostart asks at a boot. An accessibility service
+ * is the only way an app can: GLOBAL_ACTION_LOCK_SCREEN (Android 9) calls PowerManager.goToSleep, as the remote's
+ * power button does, and HDMI-CEC then switches the TV off.
  * Off until the person turns it on (docs/zentv/CONFIG.md).
  */
 public class ZenAutostartSteps extends AccessibilityService {
@@ -50,6 +58,10 @@ public class ZenAutostartSteps extends AccessibilityService {
     private static final long GAP_MS = 5_000;
     /** At most this many links per boot, whatever the app does. */
     private static final int MAX_LINKS = 6;
+    /** Standby waits this long after the request: a TV that HDMI-CEC is still switching on can miss it. */
+    private static final long SLEEP_DELAY_MS = 8_000;
+    /** A request still waits this long for the service to connect after a boot. */
+    private static final long SLEEP_WAIT_MS = 60_000;
 
     /**
      * One "view:link" entry: the link goes to the app when the view with this id, or one inside it, has focus. A
@@ -79,9 +91,12 @@ public class ZenAutostartSteps extends AccessibilityService {
     private static final Set<Integer> focusTried = new HashSet<>();
     /** The connected service, if any, so that arming can start the events. */
     private static ZenAutostartSteps live;
+    /** When ZenAutostart's standby is due (elapsedRealtime), 0 for none. */
+    private static long sleepAt;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable check = this::check;
+    private final Runnable goToSleep = this::goToSleep;
     /** restore_key_services was on when this connected: noted for upstream's ServiceRepair, like its key helpers. */
     private boolean repairRecord;
 
@@ -97,6 +112,38 @@ public class ZenAutostartSteps extends AccessibilityService {
         lastLinkAt = 0;
         focusTried.clear();
         if (live != null) live.listen();
+    }
+
+    /**
+     * Called on the main thread by ZenAutostart: puts the TV in standby in a few seconds. False when this service
+     * cannot, below Android 9 or when it is not turned on; when it is on but not yet connected, it does it then.
+     */
+    static boolean sleep(Context c) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false;
+        String on = Settings.Secure.getString(c.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        ComponentName me = new ComponentName(c, ZenAutostartSteps.class);
+        boolean enabled = false;
+        for (String s : on != null ? on.split(":") : new String[0]) {
+            if (me.equals(ComponentName.unflattenFromString(s))) enabled = true;
+        }
+        if (!enabled) return false;
+        sleepAt = SystemClock.elapsedRealtime() + SLEEP_DELAY_MS;
+        if (live != null) live.scheduleSleep();
+        return true;
+    }
+
+    private void scheduleSleep() {
+        long wait = sleepAt - SystemClock.elapsedRealtime();
+        if (sleepAt == 0 || wait < -SLEEP_WAIT_MS) return;
+        handler.removeCallbacks(goToSleep);
+        handler.postDelayed(goToSleep, Math.max(0, wait));
+    }
+
+    private void goToSleep() {
+        sleepAt = 0;
+        boolean done = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+                && performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN);
+        Log.i(TAG, done ? "back to standby" : "standby refused");
     }
 
     /** "view:link" entries, split at the first colon; an entry without both parts is skipped. */
@@ -146,6 +193,7 @@ public class ZenAutostartSteps extends AccessibilityService {
         repairRecord = Config.load(this).restoreKeyServices;
         if (repairRecord) ServiceRepair.connected(this, getClass());
         listen();
+        scheduleSleep();   // asked for before this connected at the boot
     }
 
     /** Unbound by Android: the person turned the service off, so Home doesn't put it back (ServiceRepair). */
@@ -159,6 +207,7 @@ public class ZenAutostartSteps extends AccessibilityService {
     public void onDestroy() {
         if (live == this) live = null;
         handler.removeCallbacks(check);
+        handler.removeCallbacks(goToSleep);
         super.onDestroy();
     }
 
