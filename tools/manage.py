@@ -16,23 +16,30 @@ pushes it with the platform's theme script, as themes/README.md describes; it ne
 --theme at the project's themes/ or examples/ is refused before anything is written. set reads the value the way
 the key's own type in the Keys table needs - true or false for a bool, a JSON list, object or number where the
 table says so, the text itself for a string - and refuses one the launcher would ignore or a number outside the
-range the table states. A theme's config.json is hand-edited, so one that cannot be read, is not JSON, or is not a
-JSON object is named before the key is written, and a write it cannot make says so instead of ending in a traceback.
+range the table states. A list of keycodes is read the same way one entry at a time, because the launcher's
+intArray() answers a list holding a word or a number under 1 with the built-in default instead of the list.
+A string whose row names the values it takes (glow_style, glass_style, wallpaper_order, clock_format) is held to
+them, since the launcher answers any other value with its own default. A theme's config.json is hand-edited, so one
+that cannot be read, is not JSON, or is not a JSON object is named before the key is written, and a write it cannot
+make says so instead of ending in a traceback.
 set's own arguments are read first: a switch without a value, a --theme without the folder behind it, and a word
 left over are answered with the usage line and exit 2 before a theme folder is read or written. list, status,
 show, install and remove read their own words the same way, before anything is read from this checkout or asked
-of the TV. A --theme folder that is not there is refused by name, not made: set starts a config.json in a folder
+of the TV. install then reads the add-on's entry: extra arguments are passed to its custom installer, but an
+add-on without one takes only its name and refuses extra arguments before anything is built, pushed or installed.
+A --theme folder that is not there is refused by name, not made: set starts a config.json in a folder
 of your own that exists, and the push it ends with replaces the theme on the TV and empties that theme's
 wallpapers, so a mistyped path would leave a one-key theme behind.
 
 On Windows, theme install and set use PowerShell (pwsh, or powershell when pwsh is not on PATH), without loading
-profiles or changing execution policy. Add-ons with their own shell installer still need Bash. A theme install
+profiles or changing execution policy. Add-ons with their own shell installer still need Bash; an install whose bash
+or Gradle wrapper cannot start says which and what to install, and exits 1 before anything is built or pushed. A theme install
 takes only its name; script arguments belong to add-ons. If set saves the local file but the push fails, it
 reports that separately: the TV may have received only part of the theme.
 
 Exit status: 0 the command ran, 1 a command on the TV or a script this checkout runs failed, 2 the command line
 asked for something this script does not do - a command it does not have, or a word the command would drop - which
-is answered before the READMEs are read or the TV is asked anything. 2 is also a run that ends with nothing asked of
+is answered before a script is started or the TV is asked anything. 2 is also a run that ends with nothing asked of
 the TV: no TV_HOST, a checkout with no tools/venv, and a TV tools/tv.py answered 2 for because it never reached it
 (a refused port, a Wireless debugging port that answers TLS, an address with no route to it). check.py answers the
 first two of those with 2 as well, and b64push.py the second.
@@ -44,6 +51,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -106,7 +114,9 @@ def package(folder):
         f = folder / "app" / name
         if f.is_file():
             m = re.search(r"applicationId\s*=?\s*['\"]([^'\"]+)['\"]", f.read_text(encoding="utf-8"))
-            if m:
+            # The id goes into `pm uninstall` on the TV's shell, so only a package-shaped name
+            # (the shape disable.sh's PKG_RE accepts) counts; anything else reads as no package.
+            if m and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+", m.group(1)):
                 return m.group(1)
     return None
 
@@ -212,6 +222,64 @@ def number_in_range(key, item, parsed, text):
     return value
 
 
+# The Keys-table cell of a list the launcher reads with intArray() - `[83, 176]` for the remote buttons those
+# keys add. A list with anything else in it is answered with the built-in default, not the list.
+KEYCODES = "list of keycodes"
+
+
+def keycode_problem(values):
+    """The first entry intArray() would throw the whole list away for, or None.
+
+    intArray() is `if (!(item instanceof Number)) return fallback; ... if (out[i] < 1) return fallback;`, so one
+    entry that is a word, or a number under 1, gives the launcher config.xml's array instead of the list: the
+    remote buttons the key was meant to add do nothing while set has already reported the list as written.
+    Number.intValue() truncates, so a fraction is read as the whole number below it rather than dropped.
+    """
+    for entry in values:
+        if isinstance(entry, bool) or not isinstance(entry, (int, float)):
+            return f"{entry!r} is not a number"
+        if entry != int(entry):
+            return f"{entry} is not a whole number (the launcher reads it as {int(entry)})"
+        if int(entry) < 1:
+            return f"{int(entry)} is below 1"
+    return None
+
+
+# The string keys a Keys-table row names the values of, with the one the launcher answers instead and whether its
+# reader ignores case. Config.glowStyle() is `GLOW_HORIZON.equalsIgnoreCase(value.trim()) ? GLOW_HORIZON :
+# GLOW_RADIAL` and glassStyle() answers glass to anything else; WallpaperRotation.validOrder() is
+# `ORDER_SEQUENTIAL.equals(order) || ORDER_SHUFFLE.equals(order)`, so `Sequential` is shuffle; ClockFormat applies
+# "12" or "24" and lets every other mode follow the TV, which is what `system` means, so a capital in SYSTEM is the
+# same mode. A value outside these sets is not an error on the TV - the default comes back - so set would report a
+# switch it left where it was, the dead `"glow_style": "off"` #3429 removed from two themes.
+ENUMS = {
+    "glow_style": (("radial", "horizon"), "radial", True),
+    "glass_style": (("glass", "rim", "halo"), "glass", True),
+    "clock_format": (("12", "24", "system"), "system", True),
+    "wallpaper_order": (("shuffle", "sequential"), "shuffle", False),
+}
+
+
+def enum_value(key, value):
+    """The string as the key's own reader keeps it, or a refusal naming the values it takes.
+
+    The launcher trims every string it reads (`string()`, `v instanceof String ? ((String) v).trim() : fallback`),
+    so the value written is the trimmed one. A key with no closed set - a name, a festival, a locale - is handed
+    back untouched, and so is a number written for a string key (`set greeting_name 42` is the text 42).
+    """
+    rule = ENUMS.get(key)
+    if rule is None:
+        return value
+    values, fallback, ignores_case = rule
+    trimmed = value.strip()
+    kept = trimmed.lower() if ignores_case else trimmed
+    if kept not in values:
+        allowed = ", ".join(values[:-1]) + " or " + values[-1]
+        sys.exit(f"{key} takes {allowed}, so {value!r} is not one the launcher keeps: it answers "
+                 f"{fallback} instead, and the theme would change nothing. Nothing was written or pushed.")
+    return trimmed
+
+
 def value_as(key, item, text):
     """The argument read the way the key's type needs, or a refusal naming what the key takes."""
     kind = declared_kind(item)
@@ -225,9 +293,9 @@ def value_as(key, item, text):
         try:
             parsed = json.loads(text)
         except ValueError:
-            return text
+            return enum_value(key, text)
         # A string key is read as a String only, so `set greeting_name 42` means the text 42, not a number.
-        return parsed if isinstance(parsed, str) else text
+        return enum_value(key, parsed if isinstance(parsed, str) else text)
     try:
         parsed = json.loads(text)
     except ValueError:
@@ -239,6 +307,12 @@ def value_as(key, item, text):
         sys.exit(f"{key} takes {item.get('type')}, so pass {example}, not {text}")
     if kind == "number":
         return number_in_range(key, item, parsed, text)
+    if (item.get("type") or "").strip() == KEYCODES:
+        problem = keycode_problem(parsed)
+        if problem:
+            sys.exit(f"{key} takes {KEYCODES}, so every entry has to be a whole number of at least 1: {problem}, "
+                     f"and the launcher ignores the whole list when one entry is not, so those remote buttons "
+                     f"would do nothing. Nothing was written or pushed.")
     return parsed
 
 
@@ -398,15 +472,37 @@ def push_theme(command):
         return 1
 
 
+def cannot_start(program, error, fix):
+    """A build or installer that never started: nothing ran, so name the program, why, and what to do."""
+    sys.stderr.write(f"cannot start {program}: {reason(error)}. {fix} Nothing was built, pushed or installed.\n")
+    return 1
+
+
 def install_addon(item, extra):
     folder = ROOT / "addons" / item["id"]
     if item["script"]:
         # The creator's own script, as their README says to run it.
-        return run(["bash", str(folder / item["script"])] + extra, ROOT)
+        try:
+            return run(["bash", str(folder / item["script"])] + extra, ROOT)
+        except OSError as e:
+            where = ("on Windows, install Git for Windows (it brings Git Bash) or WSL"
+                     if sys.platform == "win32" else "install it with your package manager")
+            return cannot_start("bash", e, f"{item['id']}'s installer is {item['script']}, a Bash script: "
+                                           f"{where}, and put bash on PATH.")
+    if extra:
+        sys.stderr.write(f"{item['id']} has no custom installer, so install takes only its name, "
+                         f"not {' '.join(extra)!r}: {USAGE_LINES['install']}. "
+                         "Nothing was built, pushed or installed.\n")
+        return 2
     # No script: the steps addons/README.md gives for every add-on.
     # Windows resolves a relative program against this process's directory, not cwd, so give the full path.
     gradlew = str(folder / "gradlew.bat") if os.name == "nt" else "./gradlew"
-    code = run([gradlew, "assembleRelease"], folder)
+    try:
+        code = run([gradlew, "assembleRelease"], folder)
+    except OSError as e:
+        return cannot_start(gradlew, e, f"{item['id']} builds with the Gradle wrapper in addons/{item['id']}/, "
+                                        f"so restore it from this checkout (git checkout -- addons/{item['id']}) "
+                                        f"and make sure it is executable.")
     if code:
         return code
     apk = folder / "app" / "build" / "outputs" / "apk" / "release" / "app-release.apk"
@@ -526,13 +622,36 @@ def cmd_set(key, value, theme_folder):
     command = theme_command(folder)
     data[key] = parsed
     f = folder / "config.json"
+    replaced = False
     try:
+        # own_folder_problem() above refuses a missing folder; an existing empty one is valid.
         folder.mkdir(parents=True, exist_ok=True)
-        f.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        # Resolve the file as well as its folder: keep an owner's config.json symlink intact.
+        try:
+            target = f.resolve(strict=True)
+        except FileNotFoundError:
+            # An empty folder or a dangling link may start a config, but a link loop must be refused.
+            target = f.resolve()
+        except RuntimeError as e:
+            # Older pathlib versions use RuntimeError for a symlink loop; report the same write refusal.
+            raise OSError(str(e)) from e
+        if target.exists():
+            with target.open("r+b"):
+                pass   # keep refusing a read-only file, even when its folder permits replacement
+        with tempfile.TemporaryDirectory(prefix=".manage-config-", dir=target.parent) as staging:
+            pending = Path(staging) / target.name
+            pending.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            if target.exists():
+                shutil.copymode(target, pending)
+            os.replace(pending, target)
+            replaced = True
     except OSError as e:
-        # A folder that is read-only, a path with a file in the middle of it, a full disk: the key is not
-        # written and the theme on the TV is untouched, so say which file and why rather than a traceback.
-        sys.exit(f"cannot write {f}: {reason(e)}. Nothing was pushed.")
+        if not replaced:
+            # Until replace succeeds, a failed write leaves the owner's previous config intact.
+            sys.exit(f"cannot write {f}: {reason(e)}. Nothing was pushed.")
+        # The local edit is already saved: staging cleanup must not turn that into a write failure.
+        sys.stderr.write(f"Saved {f} locally, but staging cleanup failed: {reason(e)}. "
+                         f"The temporary folder may remain at {staging}. Continuing with the theme push.\n")
     print(f"{key} = {json.dumps(parsed)} in {f}")
     code = push_theme(command)
     if code:
