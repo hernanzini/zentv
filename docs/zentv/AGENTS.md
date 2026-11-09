@@ -62,6 +62,8 @@ never a squash, so the next sync starts from upstream's history.
   create a new one and store it under the same name.
 - GitHub pauses a scheduled workflow after 60 days without activity in the repository. Turn it back on in the
   Actions tab.
+- GitHub has skipped this schedule in the fork before. When Monday's run does not show in the Actions tab,
+  run it by hand: `gh workflow run zentv-upstream-sync.yml -R hernanzini/zentv`.
 
 When the merge conflicts, the workflow fails and names the files. Merge by hand then:
 
