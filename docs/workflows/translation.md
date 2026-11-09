@@ -2,6 +2,8 @@
 
 **When to use this:** a new launcher language, or strings missing from existing ones.
 
+ZenTV: also translate `zen_strings.xml`, the strings of ZenTV's own features (`docs/zentv/AGENTS.md`).
+
 1. Create `launcher/app/src/main/res/values-<qualifier>/strings.xml` and translate every string in
    `launcher/app/src/main/res/values/strings.xml`, skipping the ones marked `translatable="false"`. Keep
    placeholders (`%1$s`, `%d`) and XML escapes intact. The folder suffix is the qualifier Android reads:
@@ -19,8 +21,6 @@
      language that names them itself (`values-zh-rCN`, `values-zh-rTW`, `values-vi`, `values-ko`). Keep
      `lunar_stems` at ten items and `lunar_branches` at twelve: `Lunar.java` indexes both by position,
      so a short list crashes the launcher on a TV running that language and nothing anywhere else.
-   - ZenTV: `zen_strings.xml` holds the strings of ZenTV's own features (`docs/zentv/AGENTS.md`). Translate it
-     like `strings.xml`.
 3. Add the locale to `launcher/app/src/main/res/xml/locales_config.xml`, in the tag form: a language
    folder that is not registered there cannot be chosen for the launcher alone on Android 13+.
 4. Add the language to the Languages list in `docs/launcher.md`, in the name that list uses, and the same
