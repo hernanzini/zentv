@@ -1180,6 +1180,22 @@ turned off in Settings stays off.
   tools/tv.py "settings put secure enabled_accessibility_services com.gathin.tvhome/.InputKeyService; sleep 1; settings put secure enabled_accessibility_services ''; sleep 1; settings put secure enabled_accessibility_services com.gathin.tvhome/.InputKeyService"
   ```
 
+- **On that Hisense board the helper can also hang under `Binding services` after a restart.** `dumpsys
+  accessibility` shows it enabled, `Bound services:{}` and the helper under `Binding services`, not
+  `Crashed services`, and the three writes above do not clear it. The firmware refuses every background
+  process start of a third-party app, at any time: only an activity start gets through, and `logcat`
+  says `BootInterface: intercept 3rd app.processName:com.gathin.tvhome(service)`. When Android binds the
+  helper before Home has started the launcher's process, or after standby has killed it
+  (`PowerVtImp: kill 3rd app`), the start is refused and Android 11 never retries. The firmware lets an
+  app through only when it is switched on in **Device Assistant > App Manager > Self-launched
+  applications** ("Launch Management"), and that screen lists only apps with a `BOOT_COMPLETED`
+  receiver, which the launcher does not have, so it cannot be switched on there today. The setting
+  behind that screen (`allowed_self_launch_3rd_packages`, global) cannot be set by hand either: the
+  firmware reads it once per boot and `com.hisense.tv.protector` rewrites it from its own list at every
+  start. Until then, reinstalling the launcher binds the helper again. Seen on a Hisense 55A53FUA (`songshan`,
+  Android 11, `RTT2.220118.001`); the full trace is in
+  [#3304](https://github.com/Gathin23/cleanyourtv/issues/3304).
+
 - **Enabled** means the component is in that user's colon-separated list (the class may be written in
   full, `com.gathin.tvhome/com.gathin.tvhome.HomeKeyService`). Match the whole component.
 - **Bound** means it appears under that user's `Bound services` section of the dump (`services` on older
@@ -1276,9 +1292,11 @@ turned off in Settings stays off.
   [#1047](https://github.com/Gathin23/cleanyourtv/issues/1047)) a reboot left
   `enabled_accessibility_services` naming `com.gathin.tvhome/com.gathin.tvhome.HomeKeyService` while
   `accessibility_enabled` read `0`, `dumpsys accessibility` showed `Bound services:{}` and the Home
-  button opened Google TV. `restore_key_services` does not repair this state: `ServiceRepair` writes
-  `accessibility_enabled 1` only on the path that also puts a missing helper back on the list, and here
-  the list was complete. Write the flag back, then read the dump again; toggling the service off and on
+  button opened Google TV. With `restore_key_services` on, Home now repairs this state itself for a
+  helper that had connected before: when the flag reads a confirmed `0`, `ServiceRepair` takes the
+  helpers off the list, puts them back and writes `accessibility_enabled 1`
+  ([#3404](https://github.com/Gathin23/cleanyourtv/issues/3404), a Hisense whose standby leaves exactly
+  this). Without that key, write the flag back, then read the dump again; toggling the service off and on
   in Accessibility, which is what the owner did, brought the redirect back for that session. Whether
   that manual flag change survived the next reboot was not retested; the cold-boot follow-up below
   tests the fork's separate opt-in startup repair. In one cold-boot test of that repair, TCL had reset
