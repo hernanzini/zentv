@@ -119,11 +119,12 @@ tools/tv.py 'settings put secure accessibility_enabled 1'
 That command replaces the list of accessibility services: when `settings get secure
 enabled_accessibility_services` shows others, add ZenTV's to that list with a `:` between entries.
 
-On some TVs an update of the launcher, or a force stop, takes the service off that list (TCL UnionTV, Android 9).
-Upstream's `restore_key_services` puts it back: set `"restore_key_services": true` in the theme and install with
-`RESTORE_KEY_SERVICES=1 launcher/build-and-install.sh`. Home then restores the service when it starts, as it does
-for upstream's key helpers. That install grants the launcher `WRITE_SECURE_SETTINGS`, which opens every secure
-setting to it, not only the accessibility list.
+An update of the launcher, or a force stop, can take the service off that list (TCL UnionTV, Android 9; Xiaomi
+MiTV-AFMU0, Android 14). Upstream's `restore_key_services` puts it back: set `"restore_key_services": true` in the
+theme and install with `RESTORE_KEY_SERVICES=1 launcher/build-and-install.sh`. Home then restores the service when
+it starts, while `autostart_steps` or `restore_standby` is set. A service turned off in the TV's settings also
+comes back then: to turn it off for good, remove those keys. That install grants the launcher
+`WRITE_SECURE_SETTINGS`, which opens every secure setting to it, not only the accessibility list.
 
 - The service gets no events until a boot opens the app, then only the app's focus changes, for 3 minutes. It
   reads the ids of the focused view, of its parents and of the view a `focus:` step names, nothing else.

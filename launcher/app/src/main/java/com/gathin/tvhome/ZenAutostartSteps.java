@@ -196,7 +196,10 @@ public class ZenAutostartSteps extends AccessibilityService {
         scheduleSleep();   // asked for before this connected at the boot
     }
 
-    /** Unbound by Android: the person turned the service off, so Home doesn't put it back (ServiceRepair). */
+    /**
+     * Unbound by Android: the person turned the service off, or an update is replacing the launcher. Either way
+     * the record goes; Home records the service again while zen_autostart_steps or zen_restore_standby needs it.
+     */
     @Override
     public boolean onUnbind(Intent intent) {
         if (repairRecord) ServiceRepair.disconnected(this, getClass());
