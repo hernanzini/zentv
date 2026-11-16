@@ -120,7 +120,7 @@ That command replaces the list of accessibility services: when `settings get sec
 enabled_accessibility_services` shows others, add ZenTV's to that list with a `:` between entries.
 
 An update of the launcher, or a force stop, can take the service off that list (TCL UnionTV, Android 9; Xiaomi
-MiTV-AFMU0, Android 14). Upstream's `restore_key_services` puts it back: set `"restore_key_services": true` in the
+TV Box S, Google TV 14). Upstream's `restore_key_services` puts it back: set `"restore_key_services": true` in the
 theme and install with `RESTORE_KEY_SERVICES=1 launcher/build-and-install.sh`. Home then restores the service when
 it starts, while `autostart_steps` or `restore_standby` is set. A service turned off in the TV's settings also
 comes back then: to turn it off for good, remove those keys. That install grants the launcher
@@ -152,3 +152,6 @@ turned on: only an accessibility service can put the TV in standby. Without one,
 Turn it on only for a box or TV that starts by itself after a cut. A TV that stays off until its remote is
 pressed also boots then (TCL UnionTV, Android 9): with `restore_standby`, that power-on would go straight back to
 standby.
+
+Tested on a Xiaomi TV Box S (Google TV 14) with an LG TV, both in standby: after the box was unplugged and
+plugged in again, both were back in standby 30 s later, and the next power-on played the last channel.

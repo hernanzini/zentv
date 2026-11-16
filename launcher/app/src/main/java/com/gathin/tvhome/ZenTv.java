@@ -137,7 +137,7 @@ final class ZenTv {
                 : new ZenAutostart(activity, handler, cfg.autostartApp, cfg.autostartUri, cfg.autostartSteps,
                         cfg.restoreStandby);
         // restore_key_services: an update of the launcher unbinds ZenAutostartSteps, which drops its ServiceRepair
-        // record, and then takes it off the enabled list (TCL, Android 9; Xiaomi, Android 14). While the steps or
+        // record, and then takes it off the enabled list (TCL, Android 9; Xiaomi, Google TV 14). While the steps or
         // restore_standby need it, Home records it again and puts it back.
         if (autostart != null && (!cfg.autostartSteps.isEmpty() || cfg.restoreStandby)
                 && Config.load(activity).restoreKeyServices) {
