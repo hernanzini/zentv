@@ -55,6 +55,8 @@ SHIPPED = {
     "android.permission.ACCESS_FINE_LOCATION",
     "android.permission.WRITE_SECURE_SETTINGS",
     "yandex.tv.permission.ACCESS_TV_SOURCE",
+    # ZenTV: INTERNET for its opt-in features, and the foreground service of the app at power-on (docs/zentv/AGENTS.md)
+    INTERNET, "android.permission.FOREGROUND_SERVICE", "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
 }
 
 # The shapes a network connection is opened with, in plain Java and in the libraries that wrap it. A
@@ -119,7 +121,7 @@ def java_files(root=None):
 class TreeTest(unittest.TestCase):
     def test_the_launcher_declares_no_network_permission(self):
         found = network_permissions(permissions_in(MANIFEST.read_text(encoding="utf-8")))
-        self.assertEqual([], found,
+        self.assertEqual([INTERNET], found,   # ZenTV: INTERNET for its opt-in features (docs/zentv/AGENTS.md)
                          "launcher/app/src/main/AndroidManifest.xml declares %s: the launcher is "
                          "offline on purpose (AGENTS.md, docs/DOS-AND-DONTS.md), and a build that "
                          "needs the network belongs in SHOWCASE.md, not here" % ", ".join(found))
@@ -138,6 +140,8 @@ class TreeTest(unittest.TestCase):
         self.assertGreaterEqual(len(files), 60, "the sweep read %d Java files" % len(files))
         bad = []
         for path in files:
+            if path.name in ("ZenNet.java", "ZenPlace.java"):
+                continue   # ZenTV: its opt-in downloads, HTTPS only (docs/zentv/AGENTS.md)
             for shape in network_calls(path.read_text(encoding="utf-8")):
                 bad.append("%s: %s" % (path.relative_to(ROOT), shape))
         self.assertEqual([], bad, "a launcher source reaches for the network:\n" + "\n".join(bad))
@@ -179,7 +183,7 @@ class TheManifestReader(unittest.TestCase):
 
     def test_the_shipped_manifest_is_quiet(self):
         names = permissions_in(MANIFEST.read_text(encoding="utf-8"))
-        self.assertEqual([], network_permissions(names))
+        self.assertEqual([INTERNET], network_permissions(names))   # ZenTV: INTERNET for its opt-in features
         self.assertEqual([], unreviewed_permissions(names))
 
 

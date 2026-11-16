@@ -44,7 +44,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # screenshots, notes, traces and bench results, plus their ADB key - the folders .gitignore keeps out of
 # a checkout. tests/test_walks_skip_ignored_folders.py holds every walker to that list.
 SKIP_DIRS = {".git", "venv", "node_modules", "build", ".gradle", "__pycache__", "shots", "backup", "work",
-             "traces", "bench-results", "adbkey"}
+             "traces", "bench-results", "adbkey", "mytvs"}   # ZenTV: mytvs/, a person's own TVs
 
 SCRIPT_RE = re.compile(r"([A-Za-z0-9_.\\/-]+\.ps1)\b")
 # `-TvHost`, not the second half of `--fix`: a parameter is written with one dash and a letter.
