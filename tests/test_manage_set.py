@@ -188,9 +188,10 @@ class SetValueTest(unittest.TestCase):
         self.assertEqual("string", manage.declared_kind(manage.find("greeting_name")))
         self.assertEqual("config-only", manage.declared_kind(manage.find("settings_fallback_components")))
         self.assertEqual("list", manage.declared_kind(manage.find("input_sources")))
+        self.assertEqual("colour", manage.declared_kind(manage.find("background_color")))
         # A type cell this file does not recognise would fall through to "string" and let a wrong value
         # through, so every cell the table carries today has to land on a kind.
-        known = {"bool", "list", "number", "object", "string", "config-only"}
+        known = {"bool", "list", "number", "object", "string", "config-only", "colour"}
         for cell in sorted(set(types.values())):
             with self.subTest(cell=cell):
                 self.assertIn(manage.declared_kind({"type": cell}), known)
@@ -476,6 +477,18 @@ class SetThemeFolderTest(unittest.TestCase):
                     self.assertNotIn("cannot write", message)
                     self.assertNotIn("Nothing was pushed", message)
                     self.assertEqual("theme push failed" in message, bool(push_code))
+
+    def test_a_push_that_exited_2_says_nothing_was_sent(self):
+        for push_code, sent in ((2, False), (1, True), (17, True)):
+            with self.subTest(push_code=push_code):
+                self.push.return_value = push_code
+                with mock.patch("sys.stdout"), mock.patch("sys.stderr") as stderr:
+                    self.assertEqual(manage.cmd_set("dock_band", "true", str(self.theme)), push_code)
+                message = "".join(call.args[0] for call in stderr.write.call_args_list)
+                self.assertIn(f"theme push failed (exit {push_code})", message)
+                self.assertIn("local edit was kept", message)
+                self.assertEqual("partly updated" in message, sent)
+                self.assertEqual("nothing was sent to the TV" in message, not sent)
 
     def test_cleanup_failure_before_replacement_remains_a_write_refusal(self):
         class CleanupFails(tempfile.TemporaryDirectory):

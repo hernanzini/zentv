@@ -68,6 +68,18 @@ class KeycodeListTest(unittest.TestCase):
         self.assertIsNone(self.written(), "a refused list must not touch the theme")
         self.push.assert_not_called()
 
+    def test_an_entry_above_the_launcher_int_range_is_refused(self):
+        # intValue() wraps: 4294967297 would be read as keycode 1, a different key.
+        for entry, read in (("2147483648", "-2147483648"), ("4294967296", "0"), ("4294967297", "1")):
+            with self.subTest(entry=entry):
+                refusal = self.set_key("settings_key_keycodes", f"[83, {entry}]")
+                self.assertIsNotNone(refusal, f"{entry} was written, and intValue() wraps it")
+                self.assertIn(f"{entry} is above 2147483647", refusal)
+                self.assertIn(f"it would read {read},", refusal)
+                self.assertIsNone(self.written())
+                self.push.assert_not_called()
+        self.assertIsNone(self.set_key("settings_key_keycodes", "[2147483647]"))
+
     def test_a_list_of_words_is_refused(self):
         # The key is a list of keycodes, not of the constants' names: intArray() has no answer for a String.
         refusal = self.set_key("input_key_keycodes", '["KEYCODE_TV"]')
@@ -83,6 +95,25 @@ class KeycodeListTest(unittest.TestCase):
         self.assertIn("83.5 is not a whole number", refusal)
         self.assertIn("reads it as 83", refusal)
         self.assertIsNone(self.written())
+
+    def test_nonfinite_entries_are_refused_before_writing_or_pushing(self):
+        original = b'{"greeting_name": "Keep this theme"}\n'
+        for existing in (False, True):
+            for key in sorted(KEYCODE_KEYS):
+                for number in ("NaN", "Infinity", "-Infinity", "1e309", "-1e309"):
+                    with self.subTest(existing=existing, key=key, number=number):
+                        self.config.unlink(missing_ok=True)
+                        if existing:
+                            self.config.write_bytes(original)
+                        refusal = self.set_key(key, f"[83, {number}]")
+                        self.assertIsNotNone(refusal)
+                        self.assertIn(key, refusal)
+                        self.assertIn("finite", refusal)
+                        if existing:
+                            self.assertEqual(self.config.read_bytes(), original)
+                        else:
+                            self.assertFalse(self.config.exists())
+                        self.push.assert_not_called()
 
     def test_both_keys_take_whole_numbers(self):
         for key in sorted(KEYCODE_KEYS):
@@ -112,6 +143,7 @@ class KeycodeProblemTest(unittest.TestCase):
         self.assertIsNone(manage.keycode_problem([83, 176]))
         self.assertIsNone(manage.keycode_problem([1]))
         self.assertIsNone(manage.keycode_problem([83.0]))
+        self.assertIsNone(manage.keycode_problem([1e3]))
 
     def test_the_entries_it_would_throw_the_list_away_for(self):
         self.assertIn("is not a number", manage.keycode_problem(["83"]))
