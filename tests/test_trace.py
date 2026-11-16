@@ -302,6 +302,46 @@ class RecordTest(unittest.TestCase):
         self.record(device, [], ["sleep 1"])
         self.assertIn(("shell", "[ -d /proc/1234 ] && echo running"), device.calls)
 
+    def test_a_recording_still_running_after_the_wait_is_not_pulled_or_published(self):
+        # Cover a reported PID and Android 9's pidof fallback, with and without an older local trace.
+        for started in ("1234\n", ""):
+            for existing in (False, True):
+                with self.subTest(pid=bool(started), existing=existing), tempfile.TemporaryDirectory() as tmp:
+                    device = FakeDevice(started)
+                    shell = device.shell
+
+                    def still_recording(command, read_timeout_s=None):
+                        answer = shell(command, read_timeout_s)
+                        return "running\n" if command.endswith("&& echo running") else answer
+
+                    device.shell = still_recording
+                    path = Path(tmp) / "nav-1.pftrace"
+                    if existing:
+                        path.write_bytes(b"previous complete recording")
+                    with mock.patch.object(trace.time, "sleep"), self.assertRaisesRegex(RuntimeError, "still running"):
+                        trace.record_one(device, [], ["sleep 1"], "com.gathin.tvhome", str(path))
+                    self.assertFalse(any(c[0] == "pull" for c in device.calls))
+                    self.assertNotIn(("shell", f"rm -f {trace.REMOTE}"), device.calls)
+                    if existing:
+                        self.assertEqual(path.read_bytes(), b"previous complete recording")
+                    else:
+                        self.assertFalse(path.exists())
+                    self.assertEqual(sorted(p.name for p in Path(tmp).iterdir()), [path.name] if existing else [])
+
+    def test_a_recording_that_finishes_on_the_last_poll_is_published(self):
+        device = FakeDevice()
+        shell = device.shell
+        answers = iter(["running\n"] * 59 + [""])
+
+        def finishing(command, read_timeout_s=None):
+            answer = shell(command, read_timeout_s)
+            return next(answers) if command.endswith("&& echo running") else answer
+
+        device.shell = finishing
+        size, _ = self.record(device, [], ["sleep 1"])
+        self.assertEqual(size, len(b"trace"))
+        self.assertEqual(sum(c[1].endswith("&& echo running") for c in device.calls if c[0] == "shell"), 60)
+
     def test_an_empty_trace_is_an_error_not_a_file(self):
         device = FakeDevice()
         device.pull = lambda remote, local, **kw: Path(local).write_bytes(b"")
@@ -523,6 +563,21 @@ class RecordPreservationTest(unittest.TestCase):
                 self.assertTrue(device.closed)
                 self.assertEqual(output.getvalue(), "")
                 self.assertEqual(self.snapshot(path.parent), before)
+
+    def test_main_keeps_the_old_sidecar_when_writing_the_new_one_fails(self):
+        with self.files() as (path, before):
+            device = self.device()
+
+            def half(value, stream, **kwargs):
+                stream.write('{"scenario": "ho')
+                raise OSError(28, "No space left on device")
+
+            with self.main_modules(device), mock.patch.object(trace.time, "sleep"),                  mock.patch.object(trace.json, "dump", side_effect=half),                  contextlib.redirect_stdout(io.StringIO()), self.assertRaises(OSError):
+                self.main(path)
+            self.assertTrue(device.closed)
+            self.assertEqual(path.with_suffix(".json").read_bytes(), self.SIDECAR)
+            before[path.name] = hashlib.sha256(b"trace").hexdigest()
+            self.assertEqual(self.snapshot(path.parent), before)
 
     def test_main_writes_metadata_after_successful_replacement_and_reports_size(self):
         with self.files() as (path, before):
