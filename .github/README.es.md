@@ -32,6 +32,8 @@ herramientas y la configuración del launcher. Está en inglés.
   - Un deep link abre la guía de la app.
   - El último canal se reproduce. Un servicio de accesibilidad envía los links de la app, una pantalla por vez.
   - Después del modo de espera, la app vuelve donde estaba.
+  - Después de un corte de luz, un televisor apagado sigue apagado. Una box que arranca sola vuelve al modo de
+    espera.
 - **Sobrevive a las actualizaciones del launcher.** Algunos televisores apagan el servicio después de una
   actualización. Home lo vuelve a encender.
 
@@ -41,7 +43,7 @@ Cada función está apagada hasta que la enciendes. Sin cuentas, sin analíticas
 |---|---|---|
 | Clima | `weather`, `weather_city` | [Open-Meteo](https://open-meteo.com), sin cuenta ni clave, cada 30 minutos con Home en pantalla |
 | Foto del día | `daily_wallpaper` | `www.bing.com`, 1 vez por día con Home en pantalla |
-| TV en vivo al encender | `autostart_app`, `autostart_uri`, `autostart_steps` | Ninguna |
+| TV en vivo al encender | `autostart_app`, `autostart_uri`, `autostart_steps`, `restore_standby` | Ninguna |
 | Servicio activo tras actualizar | `restore_key_services` (del proyecto original) | Ninguna |
 
 Detalles y notas de privacidad, en inglés: [docs/zentv/CONFIG.md](../docs/zentv/CONFIG.md).

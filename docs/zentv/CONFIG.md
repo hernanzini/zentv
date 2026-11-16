@@ -13,6 +13,7 @@ default; a key of the wrong type keeps the default.
 | `daily_wallpaper` | `zen_daily_wallpaper` | bool | Bing's picture of the day behind Home |
 | `autostart_app`, `autostart_uri` | `zen_autostart_app`, `zen_autostart_uri` | string | The app opened when the TV boots or wakes up onto Home, and an optional deep link sent to it instead of its launch intent |
 | `autostart_steps` | `zen_autostart_steps` | list of strings | After a boot, `"view:link"` entries: each link goes to that app once its view with that id has focus. Needs an accessibility service ([below](#steps-after-a-boot)) |
+| `restore_standby` | `zen_restore_standby` | bool | After a power cut, a TV that was in standby goes back to standby instead of opening `autostart_app`. Only for a box or TV that starts by itself when the power comes back ([below](#back-to-standby-after-a-power-cut)) |
 
 ## Example
 
@@ -118,11 +119,12 @@ tools/tv.py 'settings put secure accessibility_enabled 1'
 That command replaces the list of accessibility services: when `settings get secure
 enabled_accessibility_services` shows others, add ZenTV's to that list with a `:` between entries.
 
-On some TVs an update of the launcher, or a force stop, takes the service off that list (TCL UnionTV, Android 9).
-Upstream's `restore_key_services` puts it back: set `"restore_key_services": true` in the theme and install with
-`RESTORE_KEY_SERVICES=1 launcher/build-and-install.sh`. Home then restores the service when it starts, as it does
-for upstream's key helpers. That install grants the launcher `WRITE_SECURE_SETTINGS`, which opens every secure
-setting to it, not only the accessibility list.
+An update of the launcher, or a force stop, can take the service off that list (TCL UnionTV, Android 9; Xiaomi
+TV Box S, Google TV 14). Upstream's `restore_key_services` puts it back: set `"restore_key_services": true` in the
+theme and install with `RESTORE_KEY_SERVICES=1 launcher/build-and-install.sh`. Home then restores the service when
+it starts, while `autostart_steps` or `restore_standby` is set. A service turned off in the TV's settings also
+comes back then: to turn it off for good, remove those keys. That install grants the launcher
+`WRITE_SECURE_SETTINGS`, which opens every secure setting to it, not only the accessibility list.
 
 - The service gets no events until a boot opens the app, then only the app's focus changes, for 3 minutes. It
   reads the ids of the focused view, of its parents and of the view a `focus:` step names, nothing else.
@@ -132,3 +134,24 @@ setting to it, not only the accessibility list.
   TalkBack is on.
 - If the app changes its screens in an update, the ids no longer match and nothing is sent: the app stays where
   `autostart_uri` left it.
+
+### Back to standby after a power cut
+
+Android always boots awake. A TV box that starts by itself when the power comes back then switches the TV on
+through HDMI-CEC, even when both were off before the cut. `restore_standby` keeps them off:
+
+- Home notes when the TV goes to standby and when it wakes up.
+- A boot that finds the TV was in standby puts it back in standby after 8 s, and does not open `autostart_app`.
+  HDMI-CEC switches the TV off again. The TV shows Home for those seconds.
+- The next wake-up with the remote opens the app as a boot would: with `autostart_uri` and `autostart_steps`.
+- A TV that was on when the power went comes back on with the app, as before.
+
+It needs `autostart_app`, Android 9 or later, and the accessibility service of the [steps](#steps-after-a-boot)
+turned on: only an accessibility service can put the TV in standby. Without one, the boot opens the app as before.
+
+Turn it on only for a box or TV that starts by itself after a cut. A TV that stays off until its remote is
+pressed also boots then (TCL UnionTV, Android 9): with `restore_standby`, that power-on would go straight back to
+standby.
+
+Tested on a Xiaomi TV Box S (Google TV 14) with an LG TV, both in standby: after the box was unplugged and
+plugged in again, both were back in standby 30 s later, and the next power-on played the last channel.

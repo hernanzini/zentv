@@ -1,11 +1,13 @@
 package com.gathin.tvhome;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
@@ -39,6 +41,11 @@ import java.util.List;
  * foreground service) keeps, and ZenHoldActivity holds the app until the network is back. Both run only while an
  * app is set. A wake-up into another app or an HDMI input (HDMI-CEC) is left alone, and Home stays Home when the
  * remote's Home button is pressed later.
+ *
+ * zen_restore_standby: Android always boots awake, so a box that starts by itself when the power comes back after
+ * a cut switches the TV on through HDMI-CEC, even when both were off. Home notes standby and wake-up as they happen;
+ * a boot that finds the TV was in standby goes back to it (ZenAutostartSteps.sleep), and the next wake-up opens the
+ * app as the boot would have.
  */
 final class ZenAutostart {
     private static final String TAG = "ZenTv.Autostart";
@@ -50,11 +57,16 @@ final class ZenAutostart {
     private static final long NETWORK_WAIT_MS = 20_000;
     /** The same for a boot. Below the screensaver's usual 10 minutes, which would take Home off screen. */
     private static final long BOOT_NETWORK_WAIT_MS = 300_000;
+    /** zen_restore_standby: preferences file and key for "the TV is in standby", kept through a power cut. */
+    private static final String POWER_PREFS = "zen_power";
+    private static final String STANDBY = "standby";
 
     // Static so they survive the activity being recreated; they only reset when the process dies.
     /** When the screen last came on (elapsedRealtime), or 0 once that wake-up has been handled. */
     private static long screenOnAt;
     private static boolean bootHandled;
+    /** The boot went back to standby: the next wake-up opens the app as the boot would have. */
+    private static boolean bootOnWake;
 
     private final Activity activity;
     private final Handler handler;
@@ -62,6 +74,7 @@ final class ZenAutostart {
     private final String uri;
     /** zen_autostart_steps, handed to ZenAutostartSteps when the app opens at a boot. */
     private final List<String> steps;
+    private final boolean restoreStandby;
     private boolean resumed;
     /** The app's intent while it waits for the network. */
     private Intent pending;
@@ -73,11 +86,13 @@ final class ZenAutostart {
     private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
+            boolean off = Intent.ACTION_SCREEN_OFF.equals(intent.getAction());
+            if (restoreStandby) saveStandby(off);
+            if (off) {
                 // Hold the app on screen before the TV suspends, so the wake-up waits for the network before it
                 // resumes. Putting Home on top instead makes it a background app, which TCL firmware force-stops
-                // when the network comes back.
-                if (!resumed) {
+                // when the network comes back. Not over Home sent back to standby at a boot: no app runs yet.
+                if (!resumed && !bootOnWake) {
                     try {
                         activity.startActivity(new Intent(activity, ZenHoldActivity.class)
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION));
@@ -96,12 +111,14 @@ final class ZenAutostart {
         }
     };
 
-    ZenAutostart(Activity activity, Handler handler, String app, String uri, List<String> steps) {
+    ZenAutostart(Activity activity, Handler handler, String app, String uri, List<String> steps,
+                 boolean restoreStandby) {
         this.activity = activity;
         this.handler = handler;
         this.app = app;
         this.uri = uri;
         this.steps = steps;
+        this.restoreStandby = restoreStandby;
         IntentFilter screen = new IntentFilter(Intent.ACTION_SCREEN_ON);
         screen.addAction(Intent.ACTION_SCREEN_OFF);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -147,6 +164,15 @@ final class ZenAutostart {
         boolean boot = !bootHandled && now < BOOT_WINDOW_MS;
         bootHandled = true;
         screenOnAt = 0;
+        if (boot && restoreStandby && wasStandby() && ZenAutostartSteps.sleep(activity)) {
+            Log.i(TAG, "boot: the TV was in standby when it went down, back to standby");
+            bootOnWake = true;
+            return;
+        }
+        if (wake && bootOnWake) {
+            boot = true;
+            bootOnWake = false;
+        }
         if (!wake && !boot) return;
         Intent i = null;
         // After a wake-up the app is usually still running where it was (on the channel that was on), so it is
@@ -189,6 +215,23 @@ final class ZenAutostart {
         } catch (ActivityNotFoundException | SecurityException e) {
             Log.w(TAG, "cannot open " + app + ": " + e);
         }
+    }
+
+    /** Whether the TV was in standby when it went down. Read once, at the boot: the screen is on now. */
+    private boolean wasStandby() {
+        boolean standby = prefs().getBoolean(STANDBY, false);
+        saveStandby(false);
+        return standby;
+    }
+
+    // commit, not apply: the TV suspends, and may lose its power, seconds after the screen goes off.
+    @SuppressLint("ApplySharedPref")
+    private void saveStandby(boolean standby) {
+        prefs().edit().putBoolean(STANDBY, standby).commit();
+    }
+
+    private SharedPreferences prefs() {
+        return activity.getSharedPreferences(POWER_PREFS, Context.MODE_PRIVATE);
     }
 
     private boolean networkValidated() {

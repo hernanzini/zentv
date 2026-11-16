@@ -39,4 +39,10 @@
          grid:minerva://keycode/media_play. Empty: off. -->
     <string-array name="zen_autostart_steps" translatable="false">
     </string-array>
+    <!-- After a boot that finds the TV was in standby when it went down (a power cut while it was off), puts it
+         back in standby instead of opening zen_autostart_app; the app opens at the next wake-up, as after a boot.
+         For a TV or box that starts by itself when the power comes back, and switches the TV on through HDMI-CEC.
+         Not for a TV that stays off until its remote is pressed: there the boot is the person's own power-on.
+         Needs zen_autostart_app, Android 9 or later, and the accessibility service "ZenTV: app at power-on". -->
+    <bool name="zen_restore_standby">false</bool>
 </resources>

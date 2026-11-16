@@ -29,6 +29,7 @@ Upstream's [README](../README.md) still applies: supported TVs, the prompt, the 
   - A deep link opens the app's guide.
   - The last channel plays. A small accessibility service sends the app's own links, one screen at a time.
   - After standby, the app comes back where it was.
+  - After a power cut, a TV that was off stays off. A box that starts by itself puts the TV back in standby.
 - **It survives launcher updates.** Some TVs turn the service off after an update. Home turns it back on.
 
 Every feature is off until you turn it on. No accounts, no analytics, no ads.
@@ -37,7 +38,7 @@ Every feature is off until you turn it on. No accounts, no analytics, no ads.
 |---|---|---|
 | Weather | `weather`, `weather_city` | [Open-Meteo](https://open-meteo.com), no account or key, every 30 minutes while Home is on screen |
 | Picture of the day | `daily_wallpaper` | `www.bing.com`, once a day while Home is on screen |
-| Live TV at power-on | `autostart_app`, `autostart_uri`, `autostart_steps` | None |
+| Live TV at power-on | `autostart_app`, `autostart_uri`, `autostart_steps`, `restore_standby` | None |
 | Service back after updates | `restore_key_services` (upstream's) | None |
 
 Details and privacy notes: [docs/zentv/CONFIG.md](../docs/zentv/CONFIG.md).
