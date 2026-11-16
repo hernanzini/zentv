@@ -26,6 +26,12 @@ herramientas y la configuración del launcher. Está en inglés.
 - **El clima bajo el reloj.** La temperatura actual, la máxima y la mínima, la probabilidad de lluvia y las
   próximas horas. Indica tu ciudad por nombre.
 - **La foto del día.** La foto diaria de Bing es el fondo. Se oscurece para que el texto se lea.
+
+  <img src="../docs/zentv/daily-photo.jpg" alt="Home de ZenTV con una foto de fondo: una montaña nevada sobre un lago con bosque, detrás del reloj, el clima y la fila de apps." width="640">
+
+  Esta captura usa una foto de ejemplo en lugar de la de Bing:
+  [Lake Mountain Landscape](https://commons.wikimedia.org/wiki/File:Lake_Mountain_Landscape.jpg), de Bonnie
+  Moreland, CC0.
 - **TV en vivo al encender.** El televisor arranca directo en tu app de TV en vivo, como Sensa o un reproductor
   IPTV.
   - Home espera la red primero: hasta 5 minutos después de un corte de luz, mientras arranca el router.

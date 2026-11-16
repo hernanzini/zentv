@@ -24,6 +24,12 @@ Upstream's [README](../README.md) still applies: supported TVs, the prompt, the 
 - **Weather under the clock.** The temperature now, today's high and low, the chance of rain and the next hours.
   Give your city by name.
 - **A picture of the day.** Bing's daily photo is the wallpaper, darkened so the text stays readable.
+
+  <img src="../docs/zentv/daily-photo.jpg" alt="ZenTV Home with a photo as the wallpaper: a snowy mountain over a forest lake, behind the clock, the weather and the row of apps." width="640">
+
+  This capture uses a sample photo instead of Bing's:
+  [Lake Mountain Landscape](https://commons.wikimedia.org/wiki/File:Lake_Mountain_Landscape.jpg) by Bonnie
+  Moreland, CC0.
 - **Live TV at power-on.** The TV comes on straight into your live-TV app, such as Sensa or an IPTV player.
   - Home waits for the network first: up to 5 minutes after a power cut, while the router starts again.
   - A deep link opens the app's guide.
