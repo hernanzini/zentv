@@ -18,9 +18,9 @@ publishing needs that case (and its two strings) there too, and tests/test_race_
 until both sides name the same sessions.
 
 Exit status: 0 the calendar is in the theme, 1 the season has no race left to show, 2 this run could not do
-its job - the folder is not there (or was left empty), its config.json is not the JSON object a theme has (or
-cannot be read or written), --season is not a year, or the fetch failed - and says why on stderr. Nothing is
-written on 1 or 2: the theme stays as it was.
+its job - the folder is not there (or was left empty, or the filesystem cannot be asked about it at all),
+its config.json is not the JSON object a theme has (or cannot be read or written), --season is not a year,
+or the fetch failed - and says why on stderr. Nothing is written on 1 or 2: the theme stays as it was.
 """
 import argparse
 import datetime
@@ -130,6 +130,17 @@ def refuse(message):
 
 
 def main():
+    # A console code page such as cp1252 cannot print every name; print a replacement character instead of stopping.
+    # The theme folder is the argument the reader types, and it is on the last line of a run that has already
+    # written config.json: a folder named with a character the console cannot encode ended that run in a
+    # UnicodeEncodeError traceback and the exit status 1 this file's docstring gives "the season has no race left
+    # to show" - the theme was updated and the run said otherwise. tools/tv.py, match.py and the picture scripts
+    # set the same two streams for their own output; this tool's last line is the one name nothing else covers.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
     parser = argparse.ArgumentParser(description="Put this season's F1 calendar into a theme.")
     parser.add_argument("theme", help="theme folder that already exists; its config.json is created if "
                                      "missing")
@@ -151,7 +162,19 @@ def main():
     # that folder and put a calendar in it: the author then pushed, or debugged, a theme that is not the
     # one they meant. The config.json inside is still created for a folder that does exist.
     folder = Path(args.theme)
-    if not folder.is_dir():
+    # `Path.is_dir()` re-raises every OSError except ENOENT and ENOTDIR, so a theme path whose name
+    # is longer than NAME_MAX, or one under a folder this user may not traverse, went straight past
+    # this check as a traceback with exit 1 - the code this script keeps for "no race left this
+    # season". Both are a run that could not do its job, which the docstring's 2 covers, and the
+    # sentence says the theme was left alone.
+    try:
+        is_folder = folder.is_dir()
+    except OSError as e:
+        return refuse(f"could not look at {args.theme} ({e.strerror or e}). Nothing was written: a "
+                      f"theme is a folder of its own under themes/, so check the path you passed - a "
+                      f"name too long for this filesystem, or a folder your user cannot open, is what "
+                      f"this run cannot read.")
+    if not is_folder:
         return refuse(f"there is no theme folder at {args.theme}. Nothing was written: a theme is a "
                       f"folder of its own under themes/, so check the name you passed - this run will not "
                       f"create one for you.")
@@ -190,7 +213,13 @@ def main():
         with urllib.request.urlopen(request, timeout=30) as response:
             payload = json.load(response)
     except urllib.error.HTTPError as e:
-        return refuse(f"Jolpica answered {e.code} {e.reason} for {endpoint}. Nothing was written: try "
+        # The error is the answer itself, body still attached: refusing without closing it leaves the
+        # connection to the garbage collector, and Python 3.14's addbase then prints `ResourceWarning:
+        # Implicitly cleaning up <HTTPError 503: 'Service Unavailable'>` right after this refusal
+        # (3.12 prints nothing, which is why this is not a status the docstring changes).
+        code, reason = e.code, e.reason
+        e.close()
+        return refuse(f"Jolpica answered {code} {reason} for {endpoint}. Nothing was written: try "
                       f"again later, or pass --season with a year it serves.")
     except (urllib.error.URLError, TimeoutError) as e:
         return refuse(f"could not reach Jolpica at {endpoint} ({getattr(e, 'reason', e)}). Nothing was "
