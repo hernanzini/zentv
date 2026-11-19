@@ -137,12 +137,18 @@ comes back then: to turn it off for good, remove those keys. That install grants
 
 ### Back to standby after a power cut
 
-Android always boots awake. A TV box that starts by itself when the power comes back then switches the TV on
-through HDMI-CEC, even when both were off before the cut. `restore_standby` keeps them off:
+Android always boots awake. A TV box that starts by itself when the power comes back then reports through
+HDMI-CEC that it is on, and the TV switches on with it, even when both were off before the cut. `restore_standby`
+sends them back to standby:
 
 - Home notes when the TV goes to standby and when it wakes up.
 - A boot that finds the TV was in standby puts it back in standby after 8 s, and does not open `autostart_app`.
-  HDMI-CEC switches the TV off again. The TV shows Home for those seconds.
+  HDMI-CEC switches the TV off again. The TV shows Home for those seconds: it switches on before Home starts, so
+  ZenTV cannot keep it off.
+- When the TV goes to standby first, with its remote or by itself, the box follows through HDMI-CEC and ZenTV
+  drops its own request.
+- The note stays until the TV is in standby again: a voltage dip can cut the power twice in a row, and the second
+  boot still finds it.
 - The next wake-up with the remote opens the app as a boot would: with `autostart_uri` and `autostart_steps`.
 - A TV that was on when the power went comes back on with the app, as before.
 
@@ -154,4 +160,5 @@ pressed also boots then (TCL UnionTV, Android 9): with `restore_standby`, that p
 standby.
 
 Tested on a Xiaomi TV Box S (Google TV 14) with an LG TV, both in standby: after the box was unplugged and
-plugged in again, both were back in standby 30 s later, and the next power-on played the last channel.
+plugged in again, both were back in standby 30 s later, and the next power-on played the last channel. After a
+real cut at night, the LG switched on less than a second after the box reported it was on, before Home started.

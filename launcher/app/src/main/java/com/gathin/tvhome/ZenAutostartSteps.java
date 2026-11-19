@@ -132,9 +132,24 @@ public class ZenAutostartSteps extends AccessibilityService {
         return true;
     }
 
+    /**
+     * Called on the main thread by ZenAutostart when the TV goes to standby: a request still waiting is done. The
+     * TV's own standby through HDMI-CEC can come first, and a Handler's delay does not count time in standby, so the
+     * request would otherwise wait for the next power-on and send the TV straight back to standby.
+     */
+    static void cancelSleep() {
+        sleepAt = 0;
+        if (live != null) live.handler.removeCallbacks(live.goToSleep);
+    }
+
     private void scheduleSleep() {
+        if (sleepAt == 0) return;
         long wait = sleepAt - SystemClock.elapsedRealtime();
-        if (sleepAt == 0 || wait < -SLEEP_WAIT_MS) return;
+        if (wait < -SLEEP_WAIT_MS) {   // connected too late: the TV stays on
+            sleepAt = 0;
+            ZenAutostart.noteStandby(this, false);
+            return;
+        }
         handler.removeCallbacks(goToSleep);
         handler.postDelayed(goToSleep, Math.max(0, wait));
     }
@@ -143,6 +158,7 @@ public class ZenAutostartSteps extends AccessibilityService {
         sleepAt = 0;
         boolean done = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
                 && performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN);
+        if (!done) ZenAutostart.noteStandby(this, false);   // the TV stays on
         Log.i(TAG, done ? "back to standby" : "standby refused");
     }
 
