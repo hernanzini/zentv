@@ -43,9 +43,10 @@ import java.util.List;
  * remote's Home button is pressed later.
  *
  * zen_restore_standby: Android always boots awake, so a box that starts by itself when the power comes back after
- * a cut switches the TV on through HDMI-CEC, even when both were off. Home notes standby and wake-up as they happen;
- * a boot that finds the TV was in standby goes back to it (ZenAutostartSteps.sleep), and the next wake-up opens the
- * app as the boot would have.
+ * a cut reports through HDMI-CEC that it is on, and the TV switches on with it, even when both were off. Home notes
+ * standby and wake-up as they happen; a boot that finds the TV was in standby goes back to it
+ * (ZenAutostartSteps.sleep), and the next wake-up opens the app as the boot would have. The note stays until the TV
+ * is in standby again: a voltage dip can cut the power twice in a row, and the second boot must still find it.
  */
 final class ZenAutostart {
     private static final String TAG = "ZenTv.Autostart";
@@ -87,8 +88,10 @@ final class ZenAutostart {
         @Override
         public void onReceive(Context context, Intent intent) {
             boolean off = Intent.ACTION_SCREEN_OFF.equals(intent.getAction());
-            if (restoreStandby) saveStandby(off);
+            if (restoreStandby) noteStandby(activity, off);
             if (off) {
+                // In standby, maybe before the boot's own request: the TV's standby through HDMI-CEC can come first.
+                ZenAutostartSteps.cancelSleep();
                 // Hold the app on screen before the TV suspends, so the wake-up waits for the network before it
                 // resumes. Putting Home on top instead makes it a background app, which TCL firmware force-stops
                 // when the network comes back. Not over Home sent back to standby at a boot: no app runs yet.
@@ -164,10 +167,13 @@ final class ZenAutostart {
         boolean boot = !bootHandled && now < BOOT_WINDOW_MS;
         bootHandled = true;
         screenOnAt = 0;
-        if (boot && restoreStandby && wasStandby() && ZenAutostartSteps.sleep(activity)) {
-            Log.i(TAG, "boot: the TV was in standby when it went down, back to standby");
-            bootOnWake = true;
-            return;
+        if (boot && restoreStandby) {
+            if (prefs(activity).getBoolean(STANDBY, false) && ZenAutostartSteps.sleep(activity)) {
+                Log.i(TAG, "boot: the TV was in standby when it went down, back to standby");
+                bootOnWake = true;
+                return;   // the note stays until the TV is in standby again
+            }
+            noteStandby(activity, false);
         }
         if (wake && bootOnWake) {
             boot = true;
@@ -217,21 +223,18 @@ final class ZenAutostart {
         }
     }
 
-    /** Whether the TV was in standby when it went down. Read once, at the boot: the screen is on now. */
-    private boolean wasStandby() {
-        boolean standby = prefs().getBoolean(STANDBY, false);
-        saveStandby(false);
-        return standby;
-    }
-
+    /**
+     * zen_restore_standby: notes whether the TV is in standby, for the next boot. ZenAutostartSteps notes "not in
+     * standby" when the boot's request to go back to it fails, so a later cut while the TV is on opens the app.
+     */
     // commit, not apply: the TV suspends, and may lose its power, seconds after the screen goes off.
     @SuppressLint("ApplySharedPref")
-    private void saveStandby(boolean standby) {
-        prefs().edit().putBoolean(STANDBY, standby).commit();
+    static void noteStandby(Context c, boolean standby) {
+        prefs(c).edit().putBoolean(STANDBY, standby).commit();
     }
 
-    private SharedPreferences prefs() {
-        return activity.getSharedPreferences(POWER_PREFS, Context.MODE_PRIVATE);
+    private static SharedPreferences prefs(Context c) {
+        return c.getSharedPreferences(POWER_PREFS, Context.MODE_PRIVATE);
     }
 
     private boolean networkValidated() {
