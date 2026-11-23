@@ -754,6 +754,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             grid.post(this::refitGlass);
         });
 
+        // The wallpaper caption sits on the screen, not in the grid: fade it while the grid is scrolled away from
+        // the dock, so its text never lies over the tiles.
+        final int captionScrollSlop = Math.round(12 * density);
+        grid.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull RecyclerView rv, int dx, int dy) {
+                if (wallpaperPlayer == null) return;
+                wallpaperPlayer.scrolledAway(rv.canScrollVertically(-1)
+                        && rv.computeVerticalScrollOffset() > captionScrollSlop);
+            }
+        });
+
         // Keep the glass glued to its tile while the grid scrolls.
         grid.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
@@ -1444,6 +1456,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      */
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        // A real key, not onUserInteraction: that also runs when the firmware starts Live TV over Home at power-on.
+        if (event.getAction() == KeyEvent.ACTION_DOWN) HomeKeyService.keyOnHome();
         if (homeIgnoreChannelKeys && RemoteKeys.isChannelKey(event.getKeyCode())) return true;
         // Vendor keys (TCL Netflix button, 4062) never reach the key services, only the focused window, so their
         // "hold:" entries run here too or nowhere. Only while resumed: onPause releases Home's holds, and a DOWN

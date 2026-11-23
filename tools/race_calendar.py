@@ -11,6 +11,7 @@ community successor to the Ergast API: no key, no account. Run it again when F1 
 season starts. Races that are already over are left out. The theme folder has to exist (config.json in it is
 created if it is not there yet), and its name cannot be empty: `race_calendar.py "$THEME"` with the variable
 unset would otherwise write the calendar into the directory you ran it from.
+The resulting UTF-8 config must fit the launcher's 64 KB read limit; an update over it leaves the theme alone.
 
 A session name is a contract with the launcher as well: RaceWeekend.java answers each name `SESSIONS` writes
 in its two switches and falls back to the raw name for one it does not know, so a session Jolpica starts
@@ -24,12 +25,14 @@ or the fetch failed - and says why on stderr. Nothing is written on 1 or 2: the 
 """
 import argparse
 import datetime
+import errno
 import http.client
 import json
 import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import sys
 import tempfile
 import urllib.error
@@ -118,7 +121,9 @@ def season(value):
     URL that 404s or as a season that never existed, and its answer was a traceback either way.
     """
     if value == "current" or (len(value) == 4 and value.isdigit() and int(value) >= FIRST_SEASON):
-        return value
+        # int() also accepts fullwidth and Arabic decimal digits; the HTTP path needs ASCII.
+        # Keep accepted years usable instead of blaming a request-encoding failure on Jolpica's JSON.
+        return value if value == "current" else str(int(value))
     raise argparse.ArgumentTypeError(
         f"a season is 'current' or a year from {FIRST_SEASON} on, not {value!r}")
 
@@ -127,6 +132,26 @@ def refuse(message):
     """Say what went wrong on stderr and give back 2: this run could not do its job."""
     print(message, file=sys.stderr)
     return 2
+
+
+def stat_folder(path):
+    """(it is a folder, why the filesystem would not look at it or None) for one path.
+
+    The four errnos here are the answers `Path.is_dir()` itself gave before Python 3.14: ENOENT and
+    ENOTDIR, the two ordinary ways a path is not a folder, and ELOOP and EBADF, which it also read as
+    "no". Every other refusal to look - ENAMETOOLONG for a name over NAME_MAX, EACCES under a folder
+    this user may not traverse, EINVAL, EIO - came out of is_dir() as an OSError, and main() names it.
+    On 3.14 is_dir() answers False for those too (it swallows every OSError), so asking it alone would
+    put "there is no theme folder at" - the sentence for a typo - over a theme that is there and could
+    not be read, and the refusal this file grew for that case (#4032) would not be printed at all.
+    """
+    try:
+        info = path.stat()
+    except OSError as e:
+        if e.errno in (errno.ENOENT, errno.ENOTDIR, errno.ELOOP, errno.EBADF):
+            return False, None
+        return False, (e.strerror or e)
+    return stat.S_ISDIR(info.st_mode), None
 
 
 def main():
@@ -162,15 +187,14 @@ def main():
     # that folder and put a calendar in it: the author then pushed, or debugged, a theme that is not the
     # one they meant. The config.json inside is still created for a folder that does exist.
     folder = Path(args.theme)
-    # `Path.is_dir()` re-raises every OSError except ENOENT and ENOTDIR, so a theme path whose name
-    # is longer than NAME_MAX, or one under a folder this user may not traverse, went straight past
-    # this check as a traceback with exit 1 - the code this script keeps for "no race left this
-    # season". Both are a run that could not do its job, which the docstring's 2 covers, and the
-    # sentence says the theme was left alone.
-    try:
-        is_folder = folder.is_dir()
-    except OSError as e:
-        return refuse(f"could not look at {args.theme} ({e.strerror or e}). Nothing was written: a "
+    # A theme path whose name is longer than NAME_MAX, or one under a folder this user may not
+    # traverse, went straight past this check as a traceback with exit 1 - the code this script keeps
+    # for "no race left this season". Both are a run that could not do its job, which the docstring's 2
+    # covers, and the sentence says the theme was left alone. stat_folder() asks the filesystem rather
+    # than `Path.is_dir()`, which stopped raising for those on Python 3.14 (see its docstring).
+    is_folder, refused = stat_folder(folder)
+    if refused:
+        return refuse(f"could not look at {args.theme} ({refused}). Nothing was written: a "
                       f"theme is a folder of its own under themes/, so check the path you passed - a "
                       f"name too long for this filesystem, or a folder your user cannot open, is what "
                       f"this run cannot read.")
@@ -186,11 +210,20 @@ def main():
     # Three shapes of that file are refused here, before the fetch: a path that is not a file (a stray
     # copy of the folder), text that is not JSON as UTF-8, and JSON that is not an object - `[1, 2]`
     # parsed fine and then met `theme["race_calendar"]` with a TypeError.
-    if config.exists() and not config.is_file():
-        return refuse(f"{config} is not a file. Nothing was written: a theme's config.json is one JSON "
-                      f"object, so move whatever sits at that path aside and run it again.")
     try:
-        theme = json.loads(config.read_text(encoding="utf-8-sig")) if config.is_file() else {}
+        # Ask stat directly: on Python 3.14 exists()/is_file() hide permission and I/O errors,
+        # treating an unreadable config as missing and letting the fetch start. Keep the same
+        # missing-path cases as stat_folder(), but name every other refusal before going online.
+        try:
+            mode = config.stat().st_mode
+        except OSError as e:
+            if e.errno not in (errno.ENOENT, errno.ENOTDIR, errno.ELOOP, errno.EBADF):
+                raise
+            mode = None
+        if mode is not None and not stat.S_ISREG(mode):
+            return refuse(f"{config} is not a file. Nothing was written: a theme's config.json is one JSON "
+                          f"object, so move whatever sits at that path aside and run it again.")
+        theme = json.loads(config.read_text(encoding="utf-8-sig")) if mode is not None else {}
     except ValueError as e:
         return refuse(f"{config} is not the JSON a theme's config.json has to be, as UTF-8 ({e}). Nothing "
                       f"was written: fix the file - a trailing comma or a missing brace is the usual cause "
@@ -273,6 +306,11 @@ def main():
         return 1
     theme["race_calendar"] = races
     text = json.dumps(theme, indent=2, ensure_ascii=False) + "\n"
+    size = len(text.replace("\n", os.linesep).encode("utf-8"))
+    # Config.read(File) ignores the whole overlay above this limit, not just the calendar.
+    if size > 64 * 1024:
+        return refuse(f"{config} would be {size} bytes: the launcher ignores a config larger than 64 KB "
+                      f"(65536 bytes). Nothing was written.")
     # Stage beside the actual target: a failed write must leave the theme alone, and a symlinked
     # config.json must still update its target without replacing the link itself.
     published = False

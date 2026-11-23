@@ -37,9 +37,14 @@ but a `banner_*` drawable this checkout ships, so `com.netflix.ninja=magenta` is
 the tile never shows. The two keys the Inputs menu reads a vendor number out of are read the same way:
 `input_sources` entries one at a time, since InputSources.mapped() skips an entry it cannot match to an input id,
 and `source_panel_extra` as the `"name=value"` pair openSourcePanel() sends, since a value without a name or a
-whole number before the '=' sends no extra at all. A theme's config.json is hand-edited, so one
+whole number before the '=' sends no extra at all. A `wallpaper_moods` object is read group by group for the same
+reason: Config.moods() walks WallpaperMood.ALL's morning, evening and night and keeps only a name
+ThemeFiles.collectionImage() accepts, and WallpaperMood.select() answers a group holding none of the collection's
+pictures with the whole collection, so a group named anything else, an empty group, and a name this theme does not
+ship in `wallpapers/` are refused rather than written as a group that never shows. A theme's config.json is hand-edited, so one
 that cannot be read, is not JSON, or is not a JSON object is named before the key is written, and a write it cannot
-make says so instead of ending in a traceback.
+make says so instead of ending in a traceback. An edit whose UTF-8 config would exceed the launcher's 64 KB
+read limit is refused before writing or pushing; the previous file is kept.
 set's own arguments are read first: a switch without a value, a --theme without the folder behind it, and a word
 left over are answered with the usage line and exit 2 before a theme folder is read or written. list, status,
 show, install and remove read their own words the same way, before anything is read from this checkout or asked
@@ -49,8 +54,10 @@ A --theme folder that is not there is refused by name, not made: set starts a co
 of your own that exists, and the push it ends with replaces the theme on the TV and empties that theme's
 wallpapers, so a mistyped path would leave a one-key theme behind.
 
-On Windows, theme install and set use PowerShell (pwsh, or powershell when pwsh is not on PATH), without loading
-profiles or changing execution policy. Add-ons with their own shell installer still need Bash; an install whose bash
+On Windows, theme install and set use PowerShell (pwsh, or powershell when pwsh is not on PATH) with
+-ExecutionPolicy Bypass - the flag every .ps1 command these pages hand out carries - so the script still loads
+under the Restricted policy Windows 10 and 11 ship; the flag applies to that one process and changes nothing on
+the machine. No profile is loaded. Add-ons with their own shell installer still need Bash; an install whose bash
 or Gradle wrapper cannot start says which and what to install, and exits 1 before anything is built or pushed. A theme install
 takes only its name; script arguments belong to add-ons. If set saves the local file but the push fails, it
 reports that separately: exit 2 means nothing was sent to the TV, any other code means the TV may have
@@ -64,11 +71,13 @@ the TV: no TV_HOST, a checkout with no tools/venv, and a TV tools/tv.py answered
 first two of those with 2 as well, and b64push.py the second.
 """
 import datetime
+import errno
 import json
 import math
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -91,49 +100,12 @@ LAUNCHER_ID = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$")
 
 
 # ---------------------------------------------------------------- reading the repo
+# The README tables are read back through tools/tables.py, the one Markdown-table reader in the
+# repo (gen_tables.py writes them; this reads them; the schema is documented there).
 
-def table_rows(text, header_start):
-    """Rows of the first Markdown table whose header starts with header_start, as lists of cell strings."""
-    rows, inside = [], False
-    for line in text.splitlines():
-        if line.startswith(header_start):
-            inside = True
-            continue
-        if inside:
-            if not line.startswith("|"):
-                if rows:
-                    break
-                continue
-            if re.match(r"^\|[\s:|-]+\|$", line):
-                continue
-            rows.append([c.strip() for c in line.strip().strip("|").split(" | ")])
-    return rows
-
-
-def img_src(cell):
-    m = re.search(r'<img src="([^"]+)"', cell or "")
-    return m.group(1) if m else None
-
-
-def img_srcs(cell):
-    """Every <img src> in a cell, in the order the page draws them.
-
-    docs/switches.md lets one row show more than one picture - `vpn_pill` carries the pill up and the pill at
-    rest - and tests/test_switches.py already reads every one of them. A reader that stops at the first `<img
-    src>` reports half of what the page gives the key, which is what `show` did while the page grew a second
-    picture per row. A picture with no src keeps its place as an empty string, as that page's own reader has it.
-    """
-    out = []
-    for tag in re.findall(r"<img\b[^>]*>", cell or ""):
-        m = re.search(r'\bsrc="([^"]*)"', tag)
-        out.append(m.group(1) if m else "")
-    return out
-
-
-def plain(cell):
-    """A Markdown cell as text: links to their words, code marks dropped."""
-    s = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", cell or "")
-    return s.replace("`", "").strip()
+# `python3 -I tools/manage.py`, the form its header gives, leaves the script's own folder off sys.path.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from tables import img_src, img_srcs, plain, table_rows  # noqa: E402
 
 
 def addons(root=ROOT):
@@ -577,6 +549,67 @@ def panel_extra_problem(text):
     return None
 
 
+# The groups of a rotating wallpaper collection: WallpaperMood.ALL, the three Config.moods() walks
+# (`for (String mood : WallpaperMood.ALL)`), so a group named anything else - `dusk`, `Morning` - is never looked
+# at. Each name is then kept only when ThemeFiles.collectionImage() takes it, a name without a leading dot matched
+# whole by IMAGE, and WallpaperMood.select() answers a group holding none of the collection's pictures with the
+# whole collection. Every one of those is a group that never shows what the theme says it shows, with nothing on
+# the TV saying so. A shipped theme is held to both halves by tests/test_theme_wallpaper_moods.py; this is the
+# same rule for the folder set writes.
+WALLPAPER_MOODS = ("morning", "evening", "night")
+MOOD_PICTURE = re.compile(r"[A-Za-z0-9_.-]+\.(jpg|jpeg|png|webp)", re.IGNORECASE)
+WALLPAPERS = "wallpapers"
+
+
+def moods_problem(value, folder):
+    """The first wallpaper_moods group or picture name the launcher drops, or None.
+
+    The reader is three steps, and each drops what it cannot read without a word:
+
+        // Config.moods(JSONObject)
+        JSONArray names = o.optJSONArray(mood);           // only for mood in WallpaperMood.ALL
+        String name = names.optString(i, "").trim();
+        if (ThemeFiles.collectionImage(name)) group.add(name);
+
+        // WallpaperMood.select()
+        return group.isEmpty() ? all : group;
+
+    so a group named off the three, one that is not a list, an empty group, a name the launcher's filter refuses,
+    and a name the theme does not ship in `wallpapers/` all end as no group at that time of day: the whole
+    collection rotates through instead, and `set` has already reported the object as written.
+    """
+    if not isinstance(value, dict):
+        return f"{value!r} is not an object of groups"
+    allowed = ", ".join(WALLPAPER_MOODS[:-1]) + " or " + WALLPAPER_MOODS[-1]
+    pictures = None
+    for mood, names in value.items():
+        if mood not in WALLPAPER_MOODS:
+            return (f"the group {mood!r} is not one the launcher reads ({allowed}), so Config.moods() never "
+                    f"looks at it and its pictures never show")
+        if not isinstance(names, list):
+            return (f"the group {mood!r} holds {type(names).__name__}, not a list of picture names, so "
+                    f"Config.moods() drops the group")
+        if not names:
+            return (f"the group {mood!r} is empty, and WallpaperMood.select() answers an empty group with the "
+                    f"whole collection, so the group would change nothing")
+        for name in names:
+            if not isinstance(name, str) or not name.strip():
+                return f"the group {mood!r} holds {name!r}, which is not a picture name"
+            name = name.strip()   # moods() trims every name it reads
+            if name.startswith(".") or not MOOD_PICTURE.fullmatch(name):
+                return (f"the group {mood!r} names {name!r}, which ThemeFiles.collectionImage() refuses (a "
+                        f".jpg, .jpeg, .png or .webp name, and no leading dot), so Config.moods() drops it")
+            if pictures is None:
+                collection = folder / WALLPAPERS
+                pictures = ({p.name for p in collection.iterdir() if p.is_file()}
+                            if collection.is_dir() else set())
+            if name not in pictures:
+                return (f"the group {mood!r} names {name!r}, which this theme does not ship in "
+                        f"{WALLPAPERS}/: WallpaperMood.select() matches the kept names against the collection's "
+                        f"pictures, so a group holding none of them shows every picture instead")
+    return None
+
+
 # The string keys a Keys-table row names the values of, with the one the launcher answers instead and whether its
 # reader ignores case. Config.glowStyle() is `GLOW_HORIZON.equalsIgnoreCase(value.trim()) ? GLOW_HORIZON :
 # GLOW_RADIAL` and glassStyle() answers glass to anything else; WallpaperRotation.validOrder() is
@@ -678,7 +711,13 @@ def value_as(key, item, text):
             sys.exit(f"{key} is a bool, so pass true or false, not {text}")
         return text.strip().lower() == "true"
     if kind == "colour":
-        return colour_value(key, text)
+        # Colours are strings too: decode JSON string arguments as the other string keys do.
+        # Validate the decoded colour, so its JSON quotes cannot hide a malformed hex value.
+        try:
+            parsed = json.loads(text)
+        except ValueError:
+            parsed = text
+        return colour_value(key, parsed if isinstance(parsed, str) else text)
     if kind in (None, "string"):
         try:
             parsed = json.loads(text)
@@ -729,6 +768,14 @@ def value_as(key, item, text):
         # stringList() trims every entry it keeps, so the file holds what the TV reads.
         return [entry.strip() for entry in parsed or []]
     cell = (item.get("type") or "").strip()
+    if cell == "list of package names":
+        # Config.stringList() drops non-strings and strings empty after Java trim().
+        # Refuse before writing or pushing, rather than reporting a partly applied list.
+        # Java trim() removes only characters up to U+0020, unlike Python str.strip().
+        for index, entry in enumerate(parsed, 1):
+            if not isinstance(entry, str) or not entry.strip("".join(map(chr, range(33)))):
+                sys.exit(f"{key} takes {cell}, but entry {index} is not a non-empty string. "
+                         f"Config.stringList() would drop it. Nothing was written or pushed.")
     if cell.startswith(PAIR_CELLS):
         problem = package_pair_problem(parsed)
         if problem:
@@ -779,6 +826,27 @@ def json_kind(value):
     return type(value).__name__
 
 
+def looked_at(path):
+    """What is at `path`: ('folder'|'file'|'missing', None), or ('refused', why) when the filesystem will not say.
+
+    `Path.exists()` answers False for a path that is not there and re-raises every other OSError, so a --theme
+    whose name no filesystem can hold (a component longer than NAME_MAX), or a folder this user may not
+    traverse, ended the run in an OSError traceback with exit 1 - the status this file keeps for "a command on
+    the TV or a script this checkout runs failed", over a run that never looked at a TV and wrote nothing.
+    Judged once, with the reason, the shape becomes the refusal it was meant to be.
+    """
+    try:
+        info = os.stat(path)
+    except OSError as error:
+        # What Path.exists() answers with False for: nothing is there, or nothing that is a folder.
+        if error.errno in (errno.ENOENT, errno.ENOTDIR, errno.ELOOP, errno.EBADF):
+            return "missing", None
+        return "refused", (error.strerror or str(error))
+    except ValueError:      # a NUL in the name, which os.stat refuses before the filesystem sees it
+        return "missing", None
+    return ("folder" if stat.S_ISDIR(info.st_mode) else "file"), None
+
+
 def own_folder_problem(folder):
     """Why set may not write into `folder`, or None: it is one of the folders this checkout ships, a file, or
     not there at all."""
@@ -787,9 +855,14 @@ def own_folder_problem(folder):
         if folder == project or project in folder.parents:
             return (f"{folder} is inside this checkout's {name}/: set writes into a theme folder of your own, "
                     f"so copy one somewhere else first. Nothing was written or pushed.")
-    if folder.exists() and not folder.is_dir():
+    kind, why = looked_at(folder)
+    if kind == "refused":
+        return (f"{folder} cannot be looked at ({why}): --theme takes a theme folder of your own, and set writes "
+                f"into one that can be read. A name the filesystem refuses is usually a folder edited or pasted "
+                f"wrong. Nothing was written or pushed.")
+    if kind == "file":
         return f"{folder} is a file, not a folder: --theme takes a theme folder of your own."
-    if not folder.exists():
+    if kind == "missing":
         # A path with a file in the middle of it cannot be made at all, which is not a typo to point at the
         # folder for: name the file that is in the way, as the write used to.
         for parent in folder.parents:
@@ -922,7 +995,10 @@ def theme_command(folder):
         shell = shutil.which("pwsh") or shutil.which("powershell")
         if not shell:
             sys.exit("PowerShell was not found: put pwsh or powershell on PATH. Nothing was written or pushed.")
-        return [shell, "-NoProfile", "-NonInteractive", "-File", str(TOOLS / "theme.ps1"), "-Theme", str(folder)]
+        # -ExecutionPolicy Bypass is the flag every .ps1 command these pages hand out carries: Windows 10 and 11
+        # ship Restricted, which refuses to load a script, and the flag covers that one process only (#3894).
+        return [shell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                "-File", str(TOOLS / "theme.ps1"), "-Theme", str(folder)]
     return ["bash", str(TOOLS / "theme.sh"), str(folder)]
 
 
@@ -1100,9 +1176,21 @@ def cmd_set(key, value, theme_folder):
     if problem:
         sys.exit(problem)
     parsed = value_as(key, item, value)   # before the file is written or anything is pushed
+    if key == "wallpaper_moods":
+        # The one refusal value_as() cannot make: whether a group's names are the pictures this theme ships is a
+        # question about the folder, which is this command's argument rather than the key's row.
+        problem = moods_problem(parsed, folder)
+        if problem:
+            sys.exit(f"{key} takes {item.get('type')}, and {problem}. Nothing was written or pushed.")
     command = theme_command(folder)
     data[key] = parsed
     f = folder / "config.json"
+    text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    size = len(text.replace("\n", os.linesep).encode("utf-8"))
+    # Config.read(File) ignores the whole overlay above this limit, not just the edited key.
+    if size > 64 * 1024:
+        sys.exit(f"{f} would be {size} bytes: the launcher ignores a config larger than 64 KB "
+                 f"(65536 bytes). Nothing was written or pushed.")
     replaced = False
     try:
         # own_folder_problem() above refuses a missing folder; an existing empty one is valid.
@@ -1121,7 +1209,7 @@ def cmd_set(key, value, theme_folder):
                 pass   # keep refusing a read-only file, even when its folder permits replacement
         with tempfile.TemporaryDirectory(prefix=".manage-config-", dir=target.parent) as staging:
             pending = Path(staging) / target.name
-            pending.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            pending.write_text(text, encoding="utf-8")
             if target.exists():
                 shutil.copymode(target, pending)
             os.replace(pending, target)
